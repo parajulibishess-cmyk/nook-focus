@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+  --font-nunito: 'Nunito', sans-serif;
+  --color-nook-green: #78b159;
+  --color-nook-dark-green: #558c3f;
+  --color-nook-yellow: #fdcb58;
+  --color-nook-brown: #594a42;
+  --color-nook-light-brown: #8e8070;
+  --color-nook-bg: #fcfcf7;
+}
+
+body {
+  font-family: var(--font-nunito);
+  background-color: var(--color-nook-bg);
+}
+
+/* Animations */
+@keyframes popIn {
+  0% { opacity: 0; transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.animate-pop-in {
+  animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideUp {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

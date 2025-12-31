@@ -1,0 +1,2198 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>NookFocus</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+      
+      body {
+        font-family: 'Nunito', sans-serif;
+      }
+
+      /* Custom Scrollbar */
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #e6e2d0;
+        border-radius: 10px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #d1d8e0;
+      }
+
+      /* Hide Spinners in Number Input */
+      input::-webkit-outer-spin-button,
+      input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+      input[type=number] {
+        -moz-appearance: textfield;
+      }
+
+      /* Animations */
+      @keyframes popIn {
+        0% { opacity: 0; transform: scale(0.95); }
+        100% { opacity: 1; transform: scale(1); }
+      }
+      .animate-pop-in {
+        animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      
+      @keyframes slideUp {
+        0% { opacity: 0; transform: translateY(10px); }
+        100% { opacity: 1; transform: translateY(0); }
+      }
+      .animate-slide-up {
+        animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+
+      @keyframes breathe {
+        0%, 100% { transform: scale(1); opacity: 0.8; }
+        50% { transform: scale(1.5); opacity: 0.4; }
+      }
+      .animate-breathe {
+        animation: breathe 4s ease-in-out infinite;
+      }
+
+      /* Smooth interactions */
+      .interactive-hover {
+        transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      .interactive-hover:hover {
+        transform: scale(1.03);
+      }
+      .interactive-hover:active {
+        transform: scale(0.95);
+      }
+
+      /* SVG Transitions */
+      .circle-transition {
+        transition: stroke-dashoffset 1s linear, stroke 0.5s ease-in-out;
+      }
+    </style>
+    
+    <!-- React and ReactDOM CDN for browser fallback -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+  </head>
+  <body class="bg-slate-100">
+    <div id="root"></div>
+
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+      // --- IMPORTANT: SETUP FOR ENVIRONMENT ---
+      let React, ReactDOM, LucideIcons;
+
+      if (typeof require !== 'undefined') {
+        // Electron / CommonJS environment
+        try {
+          React = require('react');
+          ReactDOM = require('react-dom/client');
+          LucideIcons = require('lucide-react');
+        } catch (e) {
+          console.warn("Require failed, falling back to window objects.");
+        }
+      }
+      
+      // Fallback to global variables if require failed or isn't available
+      if (!React) React = window.React;
+      if (!ReactDOM) ReactDOM = window.ReactDOM;
+      if (!LucideIcons) LucideIcons = window.lucide;
+
+      if (!React || !ReactDOM) {
+        console.error("React or ReactDOM not found. Please check your internet connection or environment.");
+        document.getElementById('root').innerHTML = '<div style="color:red; padding: 20px;">Error: React libraries failed to load.</div>';
+      }
+
+      const { useState, useEffect, useRef } = React;
+      
+      // Destructure icons safely
+      const {
+        Play, Pause, CheckSquare, Calendar: CalendarIcon, BarChart2, Settings, X, Plus,
+        Trash2, Leaf, ExternalLink, Loader2, AlertCircle, Flag, CalendarDays,
+        Image: ImageIcon, Zap, Clock, Target, RefreshCw, Lock, Maximize,
+        Minimize, BookOpen, ShieldAlert, Flame, Layout, ChevronLeft, ChevronRight, Music, Headphones,
+        Briefcase, PenTool, Book, Coffee, Layers, Edit3, Save, ListMusic, ArrowLeft, Globe, RotateCcw, AlertTriangle, Eye, EyeOff,
+        Wind, CloudRain, FlameKindling, Users, Volume2, Flower, Sprout, Percent, Download, Upload, Sun, Moon, Trees, Wheat, ThermometerSun
+      } = LucideIcons || {}; 
+
+      // --- ASSETS (Audio) ---
+      const DEFAULT_AUDIO = {
+          rain: "https://assets.mixkit.co/active_storage/sfx/2515/2515-preview.mp3",
+          fire: "https://assets.mixkit.co/active_storage/sfx/696/696-preview.mp3",
+          cafe: "https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3",
+          white: "https://assets.mixkit.co/active_storage/sfx/2042/2042-preview.mp3", // Wind/White noise
+          bell: "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+      };
+
+      // --- COMPONENTS ---
+      
+      const Card = ({ children, className = "", transparent = false }) => (
+        <div className={`
+            rounded-3xl p-6 transition-all duration-700 ease-out
+            ${transparent
+            ? 'bg-transparent border-2 border-transparent shadow-none backdrop-filter-none'
+            : 'bg-white/70 backdrop-blur-md shadow-xl border-2 border-white/50 hover:shadow-2xl hover:bg-white/80'}
+            ${className}
+        `}>
+            {children}
+        </div>
+      );
+
+      const Button = ({ onClick, children, variant = "primary", className = "", icon: Icon, title, type="button", disabled=false }) => {
+        const baseStyle = "flex items-center justify-center font-bold rounded-full transition-all duration-200 transform active:scale-95 hover:scale-105 border-b-4 active:border-b-0 active:translate-y-1 px-4 py-2 sm:px-6 sm:py-3 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 disabled:active:translate-y-0 text-sm sm:text-base";
+        
+        const variants = {
+            primary: "bg-[#78b159] text-white border-[#558c3f] hover:bg-[#86c266] shadow-lg shadow-[#78b159]/30",
+            secondary: "bg-[#fdcb58] text-[#7d5a00] border-[#d4a024] hover:bg-[#fed672] shadow-lg shadow-[#fdcb58]/30",
+            danger: "bg-[#ff6b6b] text-white border-[#c92a2a] hover:bg-[#ff8787] shadow-lg shadow-[#ff6b6b]/30",
+            neutral: "bg-[#f1f2f6] text-[#636e72] border-[#ced6e0] hover:bg-[#ffffff]",
+            ghost: "bg-transparent border-transparent hover:bg-black/5 text-[#636e72] p-2 hover:scale-110 active:scale-90",
+            icon: "bg-[#f1f2f6] text-[#636e72] border-[#ced6e0] hover:bg-[#ffffff] px-3 py-2"
+        };
+
+        return (
+            <button type={type} onClick={onClick} disabled={disabled} className={`${baseStyle} ${variants[variant]} ${className}`} title={title}>
+            {Icon && <Icon size={18} className={children ? "mr-2" : ""} />}
+            {children}
+            </button>
+        );
+      };
+
+      const NookCalendar = ({ selectedDate, onSelect, onClose }) => {
+        const [monthsToRender, setMonthsToRender] = useState([]);
+        const containerRef = useRef(null);
+
+        useEffect(() => {
+            const today = new Date();
+            const months = [];
+            for (let i = 0; i < 60; i++) {
+            const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
+            months.push(d);
+            }
+            setMonthsToRender(months);
+        }, []);
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+        const handleDayClick = (date) => {
+            if (date < today) return;
+            const localIso = date.toLocaleDateString('en-CA');
+            onSelect(localIso);
+            onClose();
+        };
+
+        return (
+            <div
+            className="absolute top-full mt-2 left-0 z-50 bg-[#fcfcf7] rounded-3xl border-4 border-[#e6e2d0] shadow-2xl w-72 h-80 flex flex-col animate-pop-in select-none"
+            onClick={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            >
+            <div className="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar space-y-6" ref={containerRef}>
+                {monthsToRender.map((monthDate, mIdx) => {
+                    const year = monthDate.getFullYear();
+                    const month = monthDate.getMonth();
+                    const daysInMonth = new Date(year, month + 1, 0).getDate();
+                    const firstDay = new Date(year, month, 1).getDay();
+
+                    const days = [];
+                    for (let i = 0; i < firstDay; i++) days.push(null);
+                    for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
+
+                    return (
+                        <div key={mIdx}>
+                            <h3 className="font-black text-base text-[#78b159] mb-2 sticky top-0 bg-[#fcfcf7]/95 backdrop-blur-sm py-2 z-10 border-b border-[#f1f2f6]">{monthNames[month]} {year}</h3>
+                            <div className="grid grid-cols-7 gap-1 mb-1 text-center">
+                                {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
+                                <div key={d} className="text-[10px] font-bold text-[#a4b0be] uppercase">{d}</div>
+                                ))}
+                            </div>
+                            <div className="grid grid-cols-7 gap-1">
+                                {days.map((date, dIdx) => {
+                                    if (!date) return <div key={dIdx} className="aspect-square"></div>;
+                                    
+                                    const isPast = date < today;
+                                    const isSelected = selectedDate && date.toLocaleDateString('en-CA') === selectedDate;
+
+                                    return (
+                                        <button
+                                            key={dIdx}
+                                            onClick={() => !isPast && handleDayClick(date)}
+                                            disabled={isPast}
+                                            className={`
+                                                aspect-square rounded-xl flex items-center justify-center text-xs font-bold transition-all duration-200
+                                                ${isSelected ? 'bg-[#fdcb58] text-[#594a42] shadow-sm transform scale-110' : ''}
+                                                ${isPast ? 'text-gray-200 cursor-default' : 'text-[#594a42] hover:bg-[#c2f2d0] hover:text-[#78b159] hover:scale-110 active:scale-90'}
+                                            `}
+                                        >
+                                            {date.getDate()}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            <div className="px-4 py-3 border-t border-[#e6e2d0] flex justify-center bg-[#fcfcf7] rounded-b-3xl">
+                <button onClick={onClose} className="text-xs font-bold text-[#ff6b6b] hover:bg-[#fff0f0] px-4 py-2 rounded-full transition-colors active:scale-95">
+                    Close
+                </button>
+            </div>
+            </div>
+        );
+      };
+
+      // --- MAIN APP ---
+
+      function App() {
+        const [timeLeft, setTimeLeft] = useState(25 * 60);
+        const [isActive, setIsActive] = useState(false);
+        const [mode, setMode] = useState('focus');
+        const [durations, setDurations] = useState({ focus: 25, short: 5, long: 15 });
+        const [endTime, setEndTime] = useState(null); // For accurate timing
+
+        const [autoStartBreaks, setAutoStartBreaks] = useState(false);
+        const [longBreakInterval, setLongBreakInterval] = useState(4);
+        const [pomodorosCompleted, setPomodorosCompleted] = useState(0);
+        const [focusedTaskId, setFocusedTaskId] = useState(null);
+        const [isSessionLocked, setIsSessionLocked] = useState(false);
+        const [isDeepFocus, setIsDeepFocus] = useState(false);
+        const [isMinimalist, setIsMinimalist] = useState(false); 
+        const [dailyGoal, setDailyGoal] = useState(120); // Minutes per day goal
+        const [breathingDuration, setBreathingDuration] = useState(10); // Seconds
+
+        // Navigation Block State
+        const [allowedDomains, setAllowedDomains] = useState(["spotify.com", "todoist.com", "youtube.com"]);
+        const [newAllowedDomain, setNewAllowedDomain] = useState("");
+        const [showBlockedModal, setShowBlockedModal] = useState(false);
+
+        // Feature States (Gamification, Flow, etc)
+        const [seeds, setSeeds] = useState(0);
+        const [postcards, setPostcards] = useState([]); // earned milestones
+        const [isIntentionalStart, setIsIntentionalStart] = useState(false);
+        const [intentionalTask, setIntentionalTask] = useState("");
+        const [isBreathing, setIsBreathing] = useState(false);
+        const [showFlowExtend, setShowFlowExtend] = useState(false); // Show extend button after timer
+        const [showPercentage, setShowPercentage] = useState(false); // Time Blindness Support
+        const [displayPercent, setDisplayPercent] = useState(false); // Toggle state for display
+
+        // Audio Mixer State
+        const [ambientVolumes, setAmbientVolumes] = useState({ rain: 0, fire: 0, cafe: 0, white: 0 });
+        const [customSounds, setCustomSounds] = useState([]); // {name, url}
+        const [newSoundName, setNewSoundName] = useState("");
+        const [newSoundUrl, setNewSoundUrl] = useState("");
+        const audioRefs = useRef({});
+
+        const [tasks, setTasks] = useState([]);
+        const [journalEntries, setJournalEntries] = useState([]);
+        const [stats, setStats] = useState({
+            sessions: 0,
+            minutes: 0,
+            tasksCompleted: 0,
+            breaksCompleted: 0, // Added break tracking
+            dailyHistory: {},
+            taskHistory: {},
+            hourlyActivity: new Array(24).fill(0),
+            categoryDist: { "General": 0 },
+            streak: 0,
+            lastActiveDate: null,
+            flowExtensions: 0 // New metric for Flow State
+        });
+        
+        const [newTask, setNewTask] = useState("");
+        const [newPriority, setNewPriority] = useState(1);
+        const [newDueDate, setNewDueDate] = useState("");
+        const [newCategory, setNewCategory] = useState("General");
+        const [newEstimate, setNewEstimate] = useState(1);
+        const [showCalendar, setShowCalendar] = useState(false);
+        const [showCategorySelect, setShowCategorySelect] = useState(false);
+
+        const [todoistToken, setTodoistToken] = useState("");
+        const [isSyncing, setIsSyncing] = useState(false);
+        
+        // Music/Sound State
+        const [showMusicModal, setShowMusicModal] = useState(false);
+        const [musicTab, setMusicTab] = useState('spotify'); // 'spotify' or 'ambient'
+        const [currentPlaylist, setCurrentPlaylist] = useState(null); 
+        const [playlists, setPlaylists] = useState([
+            { id: 1, name: "Lofi Beats", url: "https://open.spotify.com/embed/playlist/37i9dQZF1DWWQRwui0ExPn" },
+            { id: 2, name: "Deep Focus", url: "https://open.spotify.com/embed/playlist/37i9dQZF1DX4sWSpwq3LiO" },
+            { id: 3, name: "Jazz Vibes", url: "https://open.spotify.com/embed/playlist/37i9dQZF1DXbITWG1ZJK8t" }
+        ]);
+        const [newPlaylistName, setNewPlaylistName] = useState("");
+        const [newPlaylistUrl, setNewPlaylistUrl] = useState("");
+
+        const [bgUrl, setBgUrl] = useState("https://vijiatjack.github.io/nookoffice/video-feed/bg_4.gif");
+        const [bgOpacity, setBgOpacity] = useState(0.4);
+        const [activeTab, setActiveTab] = useState('timer');
+        const [statsTab, setStatsTab] = useState('dashboard'); // 'dashboard' or 'garden'
+
+        const [showSettings, setShowSettings] = useState(false);
+        const [showAnalytics, setShowAnalytics] = useState(false);
+        const [showJournal, setShowJournal] = useState(false);
+        const [journalInput, setJournalInput] = useState("");
+        
+        // Backup Import ref
+        const fileInputRef = useRef(null);
+
+        const timerRef = useRef(null);
+        const percentToggleRef = useRef(null);
+        const pollRef = useRef(null);
+        const containerRef = useRef(null);
+
+        const defaultBgPresets = [
+            { name: "Morning", url: "https://vijiatjack.github.io/nookoffice/video-feed/bg_1.gif", type: "image" },
+            { name: "Afternoon", url: "https://vijiatjack.github.io/nookoffice/video-feed/bg_2.gif", type: "image" },
+            { name: "Evening", url: "https://vijiatjack.github.io/nookoffice/video-feed/bg_3.gif", type: "image" },
+            { name: "Night", url: "https://vijiatjack.github.io/nookoffice/video-feed/bg_4.gif", type: "image" },
+            { name: "Rainy", url: "https://vijiatjack.github.io/nookoffice/video-feed/bg_5.gif", type: "image" },
+            { name: "Coffee", url: "https://vijiatjack.github.io/nookoffice/video-feed/bg_6.gif", type: "image" },
+            { name: "Snowy", url: "https://vijiatjack.github.io/nookoffice/video-feed/bg_7.gif", type: "image" },
+            { name: "The Roost (YT)", url: "https://youtu.be/bAaW9cf6Yw0", type: "video" }
+        ];
+        const [bgPresets, setBgPresets] = useState(defaultBgPresets);
+        const [newBgName, setNewBgName] = useState("");
+        const [newBgUrl, setNewBgUrl] = useState("");
+
+        const categories = [
+            { name: "General", icon: Layers, color: "text-[#a4b0be]" },
+            { name: "Work", icon: Briefcase, color: "text-[#54a0ff]" },
+            { name: "Study", icon: BookOpen, color: "text-[#fdcb58]" },
+            { name: "Creative", icon: PenTool, color: "text-[#ff6b6b]" },
+            { name: "Reading", icon: Book, color: "text-[#78b159]" }
+        ];
+
+        const getYouTubeId = (url) => {
+            if (!url) return null;
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+            const match = url.match(regExp);
+            return (match && match[2].length === 11) ? match[2] : null;
+        };
+
+        const getSpotifyEmbedUrl = (url) => {
+            if (!url) return "";
+            if (url.includes('spotify.com/embed')) return url;
+            return url.replace('open.spotify.com/', 'open.spotify.com/embed/');
+        };
+
+        const renderBackground = () => {
+            const ytId = getYouTubeId(bgUrl);
+            if (ytId) {
+                return (
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-screen h-screen overflow-hidden pointer-events-none">
+                        <iframe
+                            src={`https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${ytId}&showinfo=0&modestbranding=1&iv_load_policy=3&fs=0&disablekb=1`}
+                            className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                            style={{ minWidth: '177.77vh', minHeight: '56.25vw', width: '300%', height: '300%' }}
+                            title="Background Video"
+                            allow="autoplay; encrypted-media"
+                        />
+                    </div>
+                );
+            } else if (bgUrl) {
+                return <img src={bgUrl} alt="Background" className="w-full h-full object-cover" />;
+            } else {
+                return <div className="w-full h-full opacity-10" style={{ backgroundImage: `radial-gradient(#78b159 2px, transparent 2px)`, backgroundSize: '30px 30px' }}></div>;
+            }
+        };
+
+        // Initialize and Persistence
+        useEffect(() => {
+            const savedTasks = JSON.parse(localStorage.getItem('nook_tasks')) || [];
+            const savedStats = JSON.parse(localStorage.getItem('nook_stats')) || { sessions: 0, minutes: 0, tasksCompleted: 0, breaksCompleted: 0, dailyHistory: {}, taskHistory: {}, hourlyActivity: new Array(24).fill(0), categoryDist: { "General": 0 }, streak: 0, lastActiveDate: null, flowExtensions: 0 };
+            const savedJournal = JSON.parse(localStorage.getItem('nook_journal')) || [];
+            const savedDurations = JSON.parse(localStorage.getItem('nook_durations')) || { focus: 25, short: 5, long: 15 };
+            const savedToken = localStorage.getItem('nook_todoist_token') || "";
+            const savedBg = localStorage.getItem('nook_bg_url');
+            const savedOpacity = localStorage.getItem('nook_bg_opacity');
+            const savedAutoStart = localStorage.getItem('nook_auto_start') === 'true';
+            const savedInterval = parseInt(localStorage.getItem('nook_interval') || '4');
+            const savedDeepFocus = localStorage.getItem('nook_deep_focus') === 'true';
+            const savedPlaylists = JSON.parse(localStorage.getItem('nook_playlists'));
+            const savedBgPresets = JSON.parse(localStorage.getItem('nook_bg_presets'));
+            const savedAllowedDomains = JSON.parse(localStorage.getItem('nook_allowed_domains'));
+            const savedSeeds = parseInt(localStorage.getItem('nook_seeds') || '0');
+            const savedPostcards = JSON.parse(localStorage.getItem('nook_postcards') || '[]');
+            const savedCustomSounds = JSON.parse(localStorage.getItem('nook_custom_sounds') || '[]');
+            const savedShowPercentage = localStorage.getItem('nook_show_percentage') === 'true';
+            const savedDailyGoal = parseInt(localStorage.getItem('nook_daily_goal') || '120');
+            const savedBreathingDuration = parseInt(localStorage.getItem('nook_breathing_duration') || '10');
+            
+            if (!savedStats.hourlyActivity) savedStats.hourlyActivity = new Array(24).fill(0);
+            if (!savedStats.categoryDist) savedStats.categoryDist = { "General": 0 };
+            if (!savedStats.streak) savedStats.streak = 0;
+            if (savedStats.breaksCompleted === undefined) savedStats.breaksCompleted = 0;
+            if (savedStats.flowExtensions === undefined) savedStats.flowExtensions = 0;
+
+            setTasks(savedTasks);
+            setStats(savedStats);
+            setJournalEntries(savedJournal);
+            setDurations(savedDurations);
+            setTodoistToken(savedToken);
+            setTimeLeft(savedDurations.focus * 60);
+            setAutoStartBreaks(savedAutoStart);
+            setLongBreakInterval(savedInterval);
+            setIsDeepFocus(savedDeepFocus);
+            setSeeds(savedSeeds);
+            setPostcards(savedPostcards);
+            setCustomSounds(savedCustomSounds);
+            setShowPercentage(savedShowPercentage);
+            setDailyGoal(savedDailyGoal);
+            setBreathingDuration(savedBreathingDuration);
+            if (savedPlaylists) setPlaylists(savedPlaylists);
+            if (savedBgPresets) setBgPresets(savedBgPresets);
+            if (savedAllowedDomains) setAllowedDomains(savedAllowedDomains);
+
+            if (savedBg !== null) setBgUrl(savedBg);
+            if (savedOpacity !== null) setBgOpacity(parseFloat(savedOpacity));
+        }, []);
+
+        useEffect(() => { localStorage.setItem('nook_tasks', JSON.stringify(tasks)); }, [tasks]);
+        useEffect(() => { localStorage.setItem('nook_stats', JSON.stringify(stats)); }, [stats]);
+        useEffect(() => { localStorage.setItem('nook_journal', JSON.stringify(journalEntries)); }, [journalEntries]);
+        useEffect(() => { localStorage.setItem('nook_durations', JSON.stringify(durations)); }, [durations]);
+        useEffect(() => { localStorage.setItem('nook_todoist_token', todoistToken); }, [todoistToken]);
+        useEffect(() => { localStorage.setItem('nook_bg_url', bgUrl); }, [bgUrl]);
+        useEffect(() => { localStorage.setItem('nook_bg_opacity', bgOpacity.toString()); }, [bgOpacity]);
+        useEffect(() => { localStorage.setItem('nook_auto_start', autoStartBreaks); }, [autoStartBreaks]);
+        useEffect(() => { localStorage.setItem('nook_interval', longBreakInterval.toString()); }, [longBreakInterval]);
+        useEffect(() => { localStorage.setItem('nook_deep_focus', isDeepFocus); }, [isDeepFocus]);
+        useEffect(() => { localStorage.setItem('nook_playlists', JSON.stringify(playlists)); }, [playlists]);
+        useEffect(() => { localStorage.setItem('nook_bg_presets', JSON.stringify(bgPresets)); }, [bgPresets]);
+        useEffect(() => { localStorage.setItem('nook_allowed_domains', JSON.stringify(allowedDomains)); }, [allowedDomains]);
+        useEffect(() => { localStorage.setItem('nook_seeds', seeds.toString()); }, [seeds]);
+        useEffect(() => { localStorage.setItem('nook_postcards', JSON.stringify(postcards)); }, [postcards]);
+        useEffect(() => { localStorage.setItem('nook_custom_sounds', JSON.stringify(customSounds)); }, [customSounds]);
+        useEffect(() => { localStorage.setItem('nook_show_percentage', showPercentage); }, [showPercentage]);
+        useEffect(() => { localStorage.setItem('nook_daily_goal', dailyGoal.toString()); }, [dailyGoal]);
+        useEffect(() => { localStorage.setItem('nook_breathing_duration', breathingDuration.toString()); }, [breathingDuration]);
+
+        // Audio Refs Management (Includes Default + Custom)
+        useEffect(() => {
+            const allSounds = { ...DEFAULT_AUDIO, ...Object.fromEntries(customSounds.map(s => [s.name, s.url])) };
+            Object.entries(ambientVolumes).forEach(([key, volume]) => {
+                if (!allSounds[key]) return; // Check if key exists in current sound map
+                const audioEl = audioRefs.current[key];
+                if (audioEl) {
+                    audioEl.volume = volume;
+                    if (volume > 0 && audioEl.paused) {
+                        audioEl.play().catch(e => console.log("Autoplay blocked", e));
+                    } else if (volume === 0 && !audioEl.paused) {
+                        audioEl.pause();
+                    }
+                }
+            });
+        }, [ambientVolumes, customSounds]);
+
+        useEffect(() => {
+            const handleBeforeUnload = (e) => {
+                if (isActive && isDeepFocus && mode === 'focus') {
+                    e.preventDefault();
+                    e.returnValue = '';
+                }
+            };
+            window.addEventListener('beforeunload', handleBeforeUnload);
+            return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+        }, [isActive, isDeepFocus, mode]);
+
+        // Tab Key listener to toggle Minimalist mode
+        useEffect(() => {
+            const handleKeyDown = (e) => {
+                if (e.key === 'Tab') {
+                    e.preventDefault(); // Prevent focus cycling to keep focus in app
+                    setIsMinimalist(prev => !prev);
+                }
+            };
+            window.addEventListener('keydown', handleKeyDown);
+            return () => window.removeEventListener('keydown', handleKeyDown);
+        }, []);
+
+        const toggleFullscreen = () => {
+            if (!document.fullscreenElement) {
+                containerRef.current.requestFullscreen().catch(err => {
+                    console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+                });
+                setIsMinimalist(true);
+            } else {
+                document.exitFullscreen();
+                setIsMinimalist(false);
+            }
+        };
+
+        // --- Safe Link Component for Deep Focus ---
+        const SafeLink = ({ href, children, className, onClick, ...props }) => {
+            const handleClick = (e) => {
+                if (isDeepFocus && isActive && mode === 'focus') {
+                    // Block navigation logic
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    try {
+                        let urlStr = href;
+                        if (!urlStr || urlStr.startsWith('#') || urlStr.startsWith('javascript')) {
+                             if (onClick) onClick(e);
+                             return;
+                        }
+
+                        const url = new URL(urlStr);
+                        const domain = url.hostname.toLowerCase();
+                        const isAllowed = allowedDomains.some(allowed => domain.includes(allowed.toLowerCase()));
+                        
+                        if (!isAllowed) {
+                            setShowBlockedModal(true);
+                            return;
+                        }
+                    } catch (err) {
+                    }
+                }
+                if (onClick) onClick(e);
+            };
+
+            return (
+                <a href={href} onClick={handleClick} className={className} {...props}>
+                    {children}
+                </a>
+            );
+        };
+
+        useEffect(() => {
+            if (todoistToken) {
+            pollRef.current = setInterval(() => {
+                fetchTodoistTasks(todoistToken);
+            }, 60000);
+            }
+            return () => clearInterval(pollRef.current);
+        }, [todoistToken]);
+
+        const fetchTodoistTasks = async (token) => {
+            setIsSyncing(true);
+            try {
+                const res = await fetch('https://api.todoist.com/rest/v2/tasks', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setTasks(prev => {
+                        const existingIds = new Set(prev.map(t => t.todoistId));
+                        const newTasks = data
+                            .filter(t => !existingIds.has(t.id))
+                            .map(t => ({
+                                id: Date.now() + Math.random(),
+                                text: t.content,
+                                priority: t.priority,
+                                dueDate: t.due ? t.due.date : "",
+                                completed: t.is_completed,
+                                category: "General",
+                                estimatedPomos: 1,
+                                completedPomos: 0,
+                                todoistId: t.id,
+                                isSyncing: false
+                            }));
+                        return [...prev, ...newTasks];
+                    });
+                }
+            } catch (e) { console.error("Sync failed", e); } finally { setIsSyncing(false); }
+        };
+
+        // --- Accurate Timer Logic & Percentage Toggle ---
+        useEffect(() => {
+            let interval = null;
+            if (isActive && endTime) {
+                interval = setInterval(() => {
+                    const now = Date.now();
+                    const diff = Math.ceil((endTime - now) / 1000);
+                    if (diff <= 0) {
+                        setTimeLeft(0);
+                        setIsActive(false);
+                        setEndTime(null);
+                        handleTimerComplete();
+                    } else {
+                        setTimeLeft(diff);
+                    }
+                }, 100);
+            } else if (!isActive) {
+                 clearInterval(interval);
+            }
+            return () => clearInterval(interval);
+        }, [isActive, endTime]);
+
+        // Percentage display toggler
+        useEffect(() => {
+            let interval = null;
+            if (showPercentage && isActive) {
+                interval = setInterval(() => {
+                    setDisplayPercent(prev => !prev);
+                }, 5000); // Switch every 5 seconds
+            } else {
+                setDisplayPercent(false); // Reset to time when paused/disabled
+            }
+            return () => clearInterval(interval);
+        }, [showPercentage, isActive]);
+
+        const startTimer = () => {
+            setEndTime(Date.now() + timeLeft * 1000);
+            setIsActive(true);
+            setShowFlowExtend(false);
+            setIsBreathing(false);
+        };
+
+        const pauseTimer = () => {
+            setIsActive(false);
+            setEndTime(null); 
+        };
+
+        const handleTimerComplete = () => {
+            const audio = new Audio(DEFAULT_AUDIO.bell);
+            audio.play().catch(e => console.log("Audio play failed interaction required"));
+
+            if (mode === 'focus') {
+                if (focusedTaskId) {
+                     setTasks(prev => prev.map(t => t.id === focusedTaskId ? { ...t, completedPomos: (t.completedPomos || 0) + 1 } : t));
+                }
+                
+                setSeeds(prev => prev + 1);
+                const currentTotal = stats.minutes + durations.focus;
+                if (currentTotal >= 600 && !postcards.includes("10h_milestone")) {
+                    setPostcards(prev => [...prev, "10h_milestone"]);
+                }
+
+                setShowFlowExtend(true); 
+                
+                if (focusedTaskId) {
+                     const linkedTask = tasks.find(t => t.id === focusedTaskId);
+                     if (linkedTask && !linkedTask.completed) {
+                         // Don't auto-break, let them decide in "Extend" or "Break"
+                     }
+                }
+            } else {
+                // Break ended - Count Compliance
+                setStats(prev => ({ ...prev, breaksCompleted: (prev.breaksCompleted || 0) + 1 }));
+                finishSession();
+            }
+        };
+
+        const finishSession = (nextModeOverride) => {
+            setIsActive(false);
+            setIsSessionLocked(false);
+            setShowFlowExtend(false);
+            setIsBreathing(false);
+
+            if (mode === 'focus') {
+                const now = new Date();
+                const today = now.toISOString().split('T')[0];
+                const hour = now.getHours();
+
+                setStats(prev => {
+                    const newHistory = { ...prev.dailyHistory };
+                    newHistory[today] = (newHistory[today] || 0) + durations.focus;
+                
+                    const newHourly = [...prev.hourlyActivity];
+                    newHourly[hour] += durations.focus;
+
+                    let newStreak = prev.streak;
+                    if (prev.lastActiveDate !== today) {
+                        const yesterday = new Date(now);
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        const yesterdayStr = yesterday.toISOString().split('T')[0];
+                        if (prev.lastActiveDate === yesterdayStr) newStreak += 1;
+                        else if (prev.lastActiveDate !== today) newStreak = 1;
+                    }
+
+                    const activeTaskCategory = tasks.find(t => t.id === focusedTaskId)?.category || "General";
+                    const newCategoryDist = { ...prev.categoryDist };
+                    newCategoryDist[activeTaskCategory] = (newCategoryDist[activeTaskCategory] || 0) + durations.focus;
+
+                    return {
+                        ...prev,
+                        sessions: prev.sessions + 1,
+                        minutes: prev.minutes + durations.focus,
+                        dailyHistory: newHistory,
+                        hourlyActivity: newHourly,
+                        categoryDist: newCategoryDist,
+                        streak: newStreak,
+                        lastActiveDate: today
+                    };
+                });
+
+                const nextCount = pomodorosCompleted + 1;
+                setPomodorosCompleted(nextCount);
+                
+                let nextMode = 'short';
+                if (nextCount >= longBreakInterval) {
+                    nextMode = 'long';
+                    setPomodorosCompleted(0);
+                }
+                
+                // Trigger One-Breath Break
+                setIsBreathing(true);
+                setTimeout(() => {
+                   setIsBreathing(false);
+                   setMode(nextMode);
+                   setTimeLeft(durations[nextMode] * 60);
+                   if (autoStartBreaks) startTimer();
+                }, breathingDuration * 1000); 
+
+            } else {
+                setMode('focus');
+                setTimeLeft(durations.focus * 60);
+            }
+        };
+
+        const extendSession = () => {
+            const extraTime = 15 * 60;
+            setTimeLeft(extraTime);
+            setEndTime(Date.now() + extraTime * 1000);
+            setIsActive(true);
+            setShowFlowExtend(false);
+            setStats(prev => ({
+                ...prev, 
+                minutes: prev.minutes + 15,
+                flowExtensions: (prev.flowExtensions || 0) + 1
+            })); 
+        };
+
+        const addTask = async (e) => {
+            e.preventDefault();
+            if (!newTask.trim()) return;
+
+            const tempId = Date.now();
+        
+            setTasks(prev => [...prev, {
+            id: tempId,
+            text: newTask,
+            priority: newPriority,
+            dueDate: newDueDate,
+            category: newCategory,
+            estimatedPomos: newEstimate,
+            completedPomos: 0,
+            completed: false,
+            isSyncing: (!!todoistToken),
+            todoistId: null
+            }]);
+        
+            setNewTask("");
+            setNewPriority(1);
+            setNewDueDate("");
+            setNewCategory("General");
+            setNewEstimate(1);
+            setShowCalendar(false);
+
+            if (todoistToken) {
+                try {
+                    const res = await fetch('https://api.todoist.com/rest/v2/tasks', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${todoistToken}`, 'Content-Type': 'application/json', 'X-Request-Id': tempId.toString() },
+                        body: JSON.stringify({ content: newTask, priority: newPriority, due_date: newDueDate || undefined })
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        setTasks(prev => prev.map(t => t.id === tempId ? { ...t, todoistId: data.id, isSyncing: false } : t));
+                    } else { setTasks(prev => prev.map(t => t.id === tempId ? { ...t, isSyncing: false, error: true } : t)); }
+                } catch (e) { setTasks(prev => prev.map(t => t.id === tempId ? { ...t, isSyncing: false, error: true } : t)); }
+            }
+        };
+
+        const toggleTask = async (id, currentStatus, todoistId) => {
+            const newStatus = !currentStatus;
+            setTasks(tasks.map(t => t.id === id ? { ...t, completed: newStatus } : t));
+
+            if (newStatus) {
+                const today = new Date().toISOString().split('T')[0];
+                setStats(prev => {
+                    const newHistory = { ...prev.taskHistory };
+                    newHistory[today] = (newHistory[today] || 0) + 1;
+                    return { ...prev, tasksCompleted: prev.tasksCompleted + 1, taskHistory: newHistory };
+                });
+            }
+
+            if (isSessionLocked && id === focusedTaskId && newStatus) {
+               setIsSessionLocked(false);
+            }
+
+            if (todoistToken && todoistId) {
+                try {
+                    const action = !currentStatus ? 'close' : 'reopen';
+                    await fetch(`https://api.todoist.com/rest/v2/tasks/${todoistId}/${action}`, { method: 'POST', headers: { 'Authorization': `Bearer ${todoistToken}` } });
+                } catch (e) {}
+            }
+        };
+
+        const deleteTask = async (id, todoistId) => {
+            setTasks(tasks.filter(t => t.id !== id));
+            if (id === focusedTaskId) setFocusedTaskId(null);
+            if (todoistToken && todoistId) {
+                try { await fetch(`https://api.todoist.com/rest/v2/tasks/${todoistId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${todoistToken}` } }); } catch(e) {}
+            }
+        };
+
+        const addJournalEntry = (e) => {
+            e.preventDefault();
+            if (!journalInput.trim()) return;
+            setJournalEntries([{ id: Date.now(), text: journalInput, date: new Date().toLocaleString() }, ...journalEntries]);
+            setJournalInput("");
+        };
+
+        const deleteJournalEntry = (id) => {
+            setJournalEntries(journalEntries.filter(entry => entry.id !== id));
+        };
+
+        const handleStartClick = () => {
+             if (isActive) {
+                 pauseTimer();
+             } else {
+                 if (mode === 'focus') {
+                     if (focusedTaskId) {
+                         const task = tasks.find(t => t.id === focusedTaskId);
+                         setIntentionalTask(task ? task.text : "");
+                         setIsIntentionalStart(true);
+                     } else {
+                         setIsIntentionalStart(true);
+                     }
+                 } else {
+                     startTimer();
+                 }
+             }
+        };
+
+        const confirmIntent = (customTask) => {
+            if (customTask && !focusedTaskId) {
+                setIntentionalTask(customTask);
+            }
+            setIsIntentionalStart(false);
+            startTimer();
+        };
+
+        const changeMode = (newMode) => { 
+            setMode(newMode); 
+            setIsActive(false); 
+            setEndTime(null);
+            setTimeLeft(durations[newMode] * 60); 
+        };
+        const getPriorityColor = (p) => {
+            switch(parseInt(p)) { case 4: return "text-[#ff6b6b]"; case 3: return "text-[#fdcb58]"; case 2: return "text-[#54a0ff]"; default: return "text-[#a4b0be]"; }
+        };
+        const calculateProgress = () => ((durations[mode] * 60 - timeLeft) / (durations[mode] * 60)) * 100;
+        
+        // --- Custom Format Time for Percentage Toggle ---
+        const formatTime = (seconds) => {
+            if (showPercentage && isActive && displayPercent) {
+                const totalSeconds = durations[mode] * 60;
+                const percent = Math.round(((totalSeconds - seconds) / totalSeconds) * 100);
+                return `${percent}%`;
+            }
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        };
+
+        const availableModes = autoStartBreaks ? ['focus'] : ['focus', 'short', 'long'];
+        const activeTask = tasks.find(t => t.id === focusedTaskId);
+
+        // --- Spotify Functions ---
+        const handleAddPlaylist = () => {
+            if (!newPlaylistName || !newPlaylistUrl) return;
+            const embedUrl = getSpotifyEmbedUrl(newPlaylistUrl);
+            setPlaylists([...playlists, { id: Date.now(), name: newPlaylistName, url: embedUrl }]);
+            setNewPlaylistName("");
+            setNewPlaylistUrl("");
+        };
+
+        const handleRemovePlaylist = (id) => {
+            setPlaylists(playlists.filter(p => p.id !== id));
+            if (currentPlaylist && playlists.find(p => p.id === id)?.url === currentPlaylist) {
+                setCurrentPlaylist(null);
+            }
+        };
+
+        // --- Background Functions ---
+        const handleAddBackground = () => {
+            if (!newBgName || !newBgUrl) return;
+            setBgPresets([...bgPresets, { name: newBgName, url: newBgUrl, type: "image", isCustom: true }]);
+            setNewBgName("");
+            setNewBgUrl("");
+        };
+
+        const handleRemoveBackground = (url) => {
+            setBgPresets(bgPresets.filter(p => p.url !== url));
+            if (bgUrl === url) setBgUrl(""); 
+        };
+
+        const handleResetBackgrounds = () => {
+            setBgPresets(defaultBgPresets);
+        };
+
+        // --- Allowed Domains Functions ---
+        const handleAddDomain = () => {
+            if (!newAllowedDomain) return;
+            let domain = newAllowedDomain.toLowerCase();
+            domain = domain.replace(/^https?:\/\//, '');
+            domain = domain.replace(/^www\./, '');
+            domain = domain.split('/')[0]; 
+            if (domain) {
+                setAllowedDomains([...allowedDomains, domain]);
+            }
+            setNewAllowedDomain("");
+        };
+
+        const handleRemoveDomain = (domain) => {
+            setAllowedDomains(allowedDomains.filter(d => d !== domain));
+        };
+        
+        // --- Custom Sound Functions ---
+        const handleAddSound = () => {
+            if (!newSoundName || !newSoundUrl) return;
+            setCustomSounds([...customSounds, { name: newSoundName, url: newSoundUrl }]);
+            setNewSoundName("");
+            setNewSoundUrl("");
+        };
+
+        // --- Backup Functions ---
+        const handleExportData = () => {
+            const dataToExport = {
+                tasks,
+                stats,
+                journalEntries,
+                durations,
+                bgUrl,
+                bgOpacity,
+                autoStartBreaks,
+                longBreakInterval,
+                isDeepFocus,
+                playlists,
+                bgPresets,
+                allowedDomains,
+                seeds,
+                postcards,
+                customSounds,
+                dailyGoal,
+                breathingDuration
+            };
+            
+            const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `nookfocus_backup_${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        };
+
+        const handleImportData = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    if (data.tasks) setTasks(data.tasks);
+                    if (data.stats) setStats(data.stats);
+                    if (data.journalEntries) setJournalEntries(data.journalEntries);
+                    if (data.durations) setDurations(data.durations);
+                    if (data.bgUrl) setBgUrl(data.bgUrl);
+                    if (data.bgOpacity !== undefined) setBgOpacity(data.bgOpacity);
+                    if (data.autoStartBreaks !== undefined) setAutoStartBreaks(data.autoStartBreaks);
+                    if (data.longBreakInterval !== undefined) setLongBreakInterval(data.longBreakInterval);
+                    if (data.isDeepFocus !== undefined) setIsDeepFocus(data.isDeepFocus);
+                    if (data.playlists) setPlaylists(data.playlists);
+                    if (data.bgPresets) setBgPresets(data.bgPresets);
+                    if (data.allowedDomains) setAllowedDomains(data.allowedDomains);
+                    if (data.seeds !== undefined) setSeeds(data.seeds);
+                    if (data.postcards) setPostcards(data.postcards);
+                    if (data.customSounds) setCustomSounds(data.customSounds);
+                    if (data.dailyGoal !== undefined) setDailyGoal(data.dailyGoal);
+                    if (data.breathingDuration !== undefined) setBreathingDuration(data.breathingDuration);
+                    
+                    alert("Import successful! Your NookFocus has been restored.");
+                } catch (err) {
+                    alert("Error importing file. Please ensure it is a valid NookFocus backup.");
+                }
+            };
+            reader.readAsText(file);
+        };
+
+        if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
+            return (
+                <div className="flex h-screen items-center justify-center bg-red-100 text-red-800 p-8 text-center font-sans">
+                    <div>
+                        <h1 className="text-2xl font-bold mb-4">Runtime Error</h1>
+                        <p>React libraries failed to load.</p>
+                        <p className="text-sm mt-2">If you are seeing this, your internet connection might be down or the CDN servers are unreachable.</p>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- Helpers for Stats ---
+        const getTodayMinutes = () => {
+            const today = new Date().toISOString().split('T')[0];
+            return stats.dailyHistory[today] || 0;
+        };
+
+        const getWeekendVsWeekday = () => {
+            let weekend = 0;
+            let weekday = 0;
+            Object.entries(stats.dailyHistory).forEach(([dateStr, mins]) => {
+                const day = new Date(dateStr).getDay();
+                if (day === 0 || day === 6) weekend += mins;
+                else weekday += mins;
+            });
+            return { weekend, weekday };
+        };
+
+        const getFlowScore = () => {
+            const total = stats.sessions + (stats.flowExtensions || 0);
+            if (total === 0) return 0;
+            return Math.round(((stats.flowExtensions || 0) / total) * 100);
+        };
+
+        const getGoldenHour = () => {
+            if (!stats.hourlyActivity || stats.hourlyActivity.every(h => h === 0)) return null;
+            const maxVal = Math.max(...stats.hourlyActivity);
+            const hour = stats.hourlyActivity.indexOf(maxVal);
+            const nextHour = (hour + 1) % 24;
+            const avg = stats.hourlyActivity.reduce((a,b)=>a+b, 0) / 24;
+            const increase = avg > 0 ? Math.round(((maxVal - avg) / avg) * 100) : 100;
+            return {
+                time: `${hour}:00 - ${nextHour}:00`,
+                increase: increase,
+                val: maxVal
+            };
+        };
+
+        return (
+            <div ref={containerRef} className="h-screen text-[#594a42] selection:bg-[#c2f2d0] relative overflow-hidden transition-all duration-500" style={{ fontFamily: "'Nunito', sans-serif" }}>
+            
+            {/* Background Layer */}
+            <div className="fixed inset-0 z-0 bg-[#fcfcf7] transition-all duration-1000 overflow-hidden">
+                {renderBackground()}
+                <div className="absolute inset-0 bg-[#fcfcf7] transition-all duration-500 pointer-events-none" style={{ opacity: bgUrl ? bgOpacity : 0.95 }}></div>
+            </div>
+
+            {/* Audio Elements for Mixer */}
+            {Object.keys(DEFAULT_AUDIO).map(key => (
+                key !== 'bell' && <audio key={key} ref={el => audioRefs.current[key] = el} src={DEFAULT_AUDIO[key]} loop />
+            ))}
+            {customSounds.map(sound => (
+                <audio key={sound.name} ref={el => audioRefs.current[sound.name] = el} src={sound.url} loop />
+            ))}
+
+            <div className={`relative z-10 w-full max-w-[1800px] mx-auto p-2 md:p-4 h-full ${isMinimalist ? 'flex items-center justify-center' : 'grid grid-cols-1 lg:grid-cols-12 gap-4'}`}>
+            
+                {/* Header - Hidden in Minimalist */}
+                {!isMinimalist && (
+                    <div className="lg:col-span-12 flex justify-between items-center mb-2 h-[10%] min-h-[60px]">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-white/80 p-3 rounded-2xl shadow-lg border-2 border-[#e6e2d0] rotate-3 backdrop-blur-sm animate-pop-in">
+                        <Leaf className="text-[#78b159]" size={28} />
+                        </div>
+                        <div className="animate-slide-up">
+                        <h1 className="text-4xl font-black tracking-tight text-[#594a42] drop-shadow-sm">NookFocus</h1>
+                        <p className="text-[#8e8070] font-bold text-sm bg-white/50 inline-block px-2 rounded-lg backdrop-blur-sm">Your island office</p>
+                        </div>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button variant="neutral" icon={BarChart2} onClick={() => setShowAnalytics(true)}>Stats</Button>
+                        <Button variant="neutral" icon={Settings} onClick={() => setShowSettings(true)}>Settings</Button>
+                    </div>
+                    </div>
+                )}
+
+                {/* Left Column: Timer */}
+                <div className={`flex flex-col gap-4 transition-all duration-500 ${isMinimalist ? 'w-full max-w-2xl scale-110' : 'lg:col-span-7 h-full'}`}>
+                <Card transparent={isActive} className="flex flex-col items-center justify-center min-h-[300px] sm:min-h-[350px] relative overflow-hidden group h-full">
+                
+                    <div className="absolute top-4 right-4 flex gap-2 z-20">
+                        {!isMinimalist && (
+                            <button onClick={() => setShowJournal(true)} className="p-2 bg-white/50 rounded-xl hover:bg-white text-[#594a42] transition-colors hover:scale-110 active:scale-90" title="Distraction Journal">
+                                <BookOpen size={20} />
+                            </button>
+                        )}
+                        <button onClick={toggleFullscreen} className="p-2 bg-white/50 rounded-xl hover:bg-white text-[#594a42] transition-colors hover:scale-110 active:scale-90">
+                            {isMinimalist ? <Minimize size={20} /> : <Maximize size={20} />}
+                        </button>
+                    </div>
+
+                    {/* Mode Toggles */}
+                    {!autoStartBreaks && !isMinimalist && (
+                    <div className={`flex p-1.5 rounded-full mb-6 z-10 shadow-inner transition-colors duration-500 ${isActive ? 'bg-white/20 backdrop-blur-sm' : 'bg-[#f1f2f6]/80 backdrop-blur-md'}`}>
+                        {availableModes.map((m) => (
+                        <button key={m} onClick={() => changeMode(m)} className={`px-4 sm:px-6 py-2 rounded-full font-black text-xs sm:text-sm transition-all duration-200 interactive-hover ${mode === m ? 'bg-white text-[#78b159] shadow-md transform scale-105' : 'text-[#8e8070] hover:text-[#594a42] hover:bg-white/50'} ${isActive && mode !== m ? 'text-white/80 hover:text-white' : ''}`}>
+                            {m === 'focus' ? 'Focus' : m === 'short' ? 'Short' : 'Long'}
+                        </button>
+                        ))}
+                    </div>
+                    )}
+
+                    {/* Timer Display */}
+                    <div key={mode} className="relative mb-6 z-10 animate-pop-in">
+                    <svg className="w-56 h-56 sm:w-72 sm:h-72 transform -rotate-90 drop-shadow-xl">
+                        <circle cx="50%" cy="50%" r="45%" fill="none" stroke={isActive ? "rgba(255,255,255,0.2)" : "#f1f2f6"} strokeWidth="16" className="circle-transition" />
+                        <circle cx="50%" cy="50%" r="45%" fill="none" stroke={mode === 'focus' ? '#78b159' : '#fdcb58'} strokeWidth="16" strokeDasharray={`calc(2 * 3.14159 * 45%)`} strokeDashoffset={`calc(2 * 3.14159 * 45% * (1 - ${calculateProgress() / 100}))`} className="circle-transition rounded-full drop-shadow-md" strokeLinecap="round" />
+                    </svg>
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center w-full">
+                        <div className={`text-5xl sm:text-7xl font-black tracking-tighter font-mono drop-shadow-sm transition-colors duration-500 ${isActive ? 'text-white drop-shadow-md' : 'text-[#594a42]'}`} style={{ textShadow: isActive ? '0 4px 12px rgba(0,0,0,0.3)' : 'none' }}>
+                        {formatTime(timeLeft)}
+                        </div>
+                        <div className={`font-bold mt-2 animate-pulse px-4 py-1 rounded-full backdrop-blur-sm inline-block transition-colors duration-500 text-xs sm:text-base ${isActive ? 'bg-black/20 text-white' : 'bg-white/50 text-[#8e8070]'}`}>
+                        {isActive ? (mode === 'focus' ? (isDeepFocus ? 'Deep Focus Locked' : 'Stay Focused') : 'Take a Breather') : 'Ready?'}
+                        </div>
+                    </div>
+                    </div>
+                
+                    {/* Status Indicators */}
+                    {mode === 'focus' && (
+                    <div className={`mb-6 text-xs font-bold transition-colors duration-500 flex flex-col items-center gap-1 ${isActive ? 'text-white/90' : 'text-[#a4b0be]'}`}>
+                        {activeTask && (
+                            <span className="flex items-center gap-2 bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm animate-pop-in">
+                                <Target size={12} className="animate-pulse" />
+                                Focusing on: <span className="underline decoration-2 underline-offset-2">{activeTask.text}</span>
+                                <span>({activeTask.completedPomos || 0}/{activeTask.estimatedPomos || 1})</span>
+                            </span>
+                        )}
+                        {autoStartBreaks && <span>Session {pomodorosCompleted + 1} of {longBreakInterval} until Long Break</span>}
+                        {isDeepFocus && <span className="flex items-center gap-1 text-[#ff6b6b] bg-white/80 px-2 py-0.5 rounded-md"><ShieldAlert size={10}/> Deep Focus Active</span>}
+                    </div>
+                    )}
+
+                    {/* Controls */}
+                    <div className="flex gap-4 z-10">
+                    <Button onClick={handleStartClick} variant={isActive ? "secondary" : "primary"} icon={isActive ? Pause : Play} className="w-32 sm:w-36 text-base sm:text-lg shadow-xl" disabled={isSessionLocked || (isActive && isDeepFocus)}>
+                        {isActive ? 'Pause' : 'Start'}
+                    </Button>
+                    </div>
+                    
+                    {/* Flow Extension Button */}
+                    {showFlowExtend && !isActive && (
+                         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 animate-slide-up z-20 flex gap-2">
+                             <Button onClick={extendSession} variant="primary" className="shadow-2xl ring-4 ring-[#78b159]/20" icon={Zap}>Extend 15m</Button>
+                             <Button onClick={() => finishSession()} variant="neutral">Take Break</Button>
+                         </div>
+                    )}
+                </Card>
+
+                {/* Integration Buttons - Hidden in Minimalist */}
+                {!isMinimalist && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                        {/* Spotify Button - Opens Modal */}
+                        <SafeLink
+                            onClick={(e) => {
+                                if (isDeepFocus && isActive && mode === 'focus') {
+                                    const isAllowed = allowedDomains.some(d => "spotify.com".includes(d) || "open.spotify.com".includes(d));
+                                    if (!isAllowed) {
+                                        e.preventDefault();
+                                        setShowBlockedModal(true);
+                                        return;
+                                    }
+                                }
+                                setShowMusicModal(true)
+                            }}
+                            className={`w-full group p-4 rounded-3xl border-2 transition-all duration-300 flex items-center gap-4 cursor-pointer hover:-translate-y-1 active:scale-95 ${
+                                isActive 
+                                ? 'bg-transparent border-transparent shadow-none backdrop-filter-none' 
+                                : 'bg-white/80 backdrop-blur-md border-white/50 shadow-lg hover:shadow-xl hover:border-[#1DB954]'
+                            }`}
+                        >
+                            <div className="bg-white p-3 rounded-2xl group-hover:bg-[#1DB954] group-hover:text-white transition-colors shadow-sm"><Music size={24} /></div>
+                            <div className="flex flex-col items-start"><span className="font-extrabold text-[#594a42]">Soundscapes</span><span className="text-xs font-bold text-[#8e8070] flex items-center gap-1">{currentPlaylist ? "Now Playing" : "Open Mixer"} <ChevronRight size={12}/></span></div>
+                        </SafeLink>
+
+                        {/* Todoist */}
+                        <SafeLink 
+                            href="https://todoist.com/app" 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            className={`group p-4 rounded-3xl border-2 transition-all duration-300 flex items-center gap-4 cursor-pointer hover:-translate-y-1 active:scale-95 ${
+                                isActive 
+                                ? 'bg-transparent border-transparent shadow-none backdrop-filter-none' 
+                                : 'bg-white/80 backdrop-blur-md border-white/50 shadow-lg hover:shadow-xl hover:border-[#ff6b6b]'
+                            }`}
+                        >
+                            <div className="bg-white p-3 rounded-2xl group-hover:bg-[#ff6b6b] group-hover:text-white transition-colors shadow-sm"><CheckSquare size={24} /></div>
+                            <div className="flex flex-col"><span className="font-extrabold text-[#594a42]">Todoist</span><span className="text-xs font-bold text-[#8e8070] flex items-center gap-1">{todoistToken ? 'Synced' : 'Open'} <ExternalLink size={10}/></span></div>
+                        </SafeLink>
+                    </div>
+                )}
+                </div>
+
+                {/* Right Column: Tasks - Hidden in Minimalist */}
+                {!isMinimalist && (
+                    <div className="lg:col-span-5 flex flex-col gap-4 h-full overflow-hidden">
+                    <Card transparent={isActive} className="flex-1 flex flex-col h-full min-h-[350px] overflow-visible relative z-20">
+                        <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl sm:text-2xl font-black flex items-center gap-3 text-[#594a42]">
+                            <span className="bg-[#fdcb58] w-3 h-8 rounded-full shadow-sm"></span>
+                            Today's Tasks
+                        </h2>
+                        <span className="text-xs font-bold bg-[#f1f2f6] px-3 py-1.5 rounded-full text-[#8e8070] border border-[#e6e2d0]">
+                            {tasks.filter(t => t.completed).length} / {tasks.length}
+                        </span>
+                        </div>
+
+                        <form onSubmit={addTask} className={`relative mb-4 rounded-2xl p-2 border-2 transition-all shadow-inner z-30 ${isActive ? 'bg-transparent border-transparent shadow-none' : 'bg-[#f1f2f6]/80 backdrop-blur-sm border-transparent focus-within:border-[#78b159] focus-within:bg-white'}`}>
+                        <input type="text" value={newTask} onChange={(e) => setNewTask(e.target.value)} placeholder="Add a new task..." className="w-full bg-transparent p-3 pl-3 outline-none font-bold text-[#594a42] placeholder-[#a4b0be] text-sm sm:text-base" />
+                        <div className="flex flex-wrap items-center justify-between mt-1 px-1 gap-2">
+                            <div className="flex flex-wrap gap-1 relative z-20">
+                                <button type="button" onClick={() => setNewPriority(prev => prev >= 4 ? 1 : prev + 1)} className={`p-1.5 sm:p-2 rounded-xl transition-all hover:bg-black/5 flex items-center gap-1 hover:scale-105 active:scale-95 ${getPriorityColor(newPriority)}`} title="Priority">
+                                    <Flag size={16} fill="currentColor" className="opacity-80"/><span className="text-[10px] sm:text-xs font-black">P{5 - newPriority}</span>
+                                </button>
+                            
+                                {/* Category Select - Custom Popover */}
+                                <div className="relative">
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setShowCategorySelect(!showCategorySelect)} 
+                                        className="bg-transparent text-[10px] sm:text-xs font-bold text-[#8e8070] p-1.5 sm:p-2 hover:bg-black/5 rounded-xl flex items-center gap-1 hover:scale-105 active:scale-95 transition-all"
+                                    >
+                                        {categories.find(c => c.name === newCategory)?.icon && React.createElement(categories.find(c => c.name === newCategory).icon, { size: 14, className: categories.find(c => c.name === newCategory).color })}
+                                        {newCategory}
+                                    </button>
+                                    
+                                    {showCategorySelect && (
+                                        <>
+                                            <div className="fixed inset-0 z-40" onClick={() => setShowCategorySelect(false)}></div>
+                                            <div className="absolute top-full left-0 mt-2 bg-white rounded-2xl shadow-xl border-2 border-[#f1f2f6] p-2 z-50 w-40 flex flex-col gap-1 animate-pop-in origin-top-left">
+                                                {categories.map(c => (
+                                                    <button 
+                                                        key={c.name} 
+                                                        type="button"
+                                                        onClick={() => { setNewCategory(c.name); setShowCategorySelect(false); }}
+                                                        className={`flex items-center gap-2 p-2 rounded-xl text-xs font-bold transition-colors w-full text-left ${newCategory === c.name ? 'bg-[#f1f2f6] text-[#594a42]' : 'text-[#8e8070] hover:bg-[#fcfcf7] hover:text-[#594a42]'}`}
+                                                    >
+                                                        <c.icon size={14} className={c.color} />
+                                                        {c.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Estimate Button (Clickable) */}
+                                <button 
+                                    type="button"
+                                    onClick={() => setNewEstimate(prev => prev >= 10 ? 1 : prev + 1)}
+                                    className="flex items-center gap-1 bg-white/50 rounded-xl px-2 py-1 hover:bg-white hover:scale-105 active:scale-95 transition-all text-[#594a42] font-bold text-[10px] sm:text-xs cursor-pointer" 
+                                    title="Estimated Pomodoros (Click to cycle)"
+                                >
+                                    <span className="text-xs">🍅</span>
+                                    {newEstimate}
+                                </button>
+
+                                <div className="relative">
+                                <button type="button" onClick={() => setShowCalendar(!showCalendar)} className={`p-1.5 sm:p-2 rounded-xl transition-all duration-300 flex items-center gap-2 hover:scale-105 active:scale-95 ${newDueDate ? 'bg-[#78b159]/10 text-[#78b159]' : 'text-[#a4b0be] hover:bg-black/5'}`}>
+                                    <CalendarDays size={16} /><span className={`text-[10px] sm:text-xs font-bold ${newDueDate ? 'text-[#78b159]' : 'text-[#a4b0be]'}`}>{newDueDate ? new Date(newDueDate + 'T00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Date'}</span>
+                                </button>
+                                {showCalendar && (
+                                    <>
+                                    <div className="fixed inset-0 z-40 bg-transparent" onMouseDown={(e) => e.preventDefault()} onClick={(e) => { e.stopPropagation(); e.preventDefault(); setShowCalendar(false); }} onWheel={(e) => e.stopPropagation()}></div>
+                                    <NookCalendar selectedDate={newDueDate} onSelect={setNewDueDate} onClose={() => setShowCalendar(false)} />
+                                    </>
+                                )}
+                                </div>
+                            </div>
+                            <button type="submit" className="bg-[#78b159] text-white p-2 rounded-xl hover:bg-[#6aa34b] transition-all shadow-md hover:scale-110 active:scale-90"><Plus size={18} /></button>
+                        </div>
+                        </form>
+
+                        <div className="flex-1 overflow-y-auto space-y-3 pr-2 pl-1 custom-scrollbar rounded-2xl">
+                        {tasks.length === 0 && (
+                            <div className="flex flex-col items-center justify-center h-48 text-[#a4b0be] text-center opacity-60 select-none animate-pop-in">
+                            <Leaf size={48} className="mb-3 opacity-20" />
+                            <p className="font-bold">All clean!</p>
+                            <p className="text-sm">Enjoy your island time.</p>
+                            </div>
+                        )}
+                    
+                        {tasks.map(task => {
+                            const isLinked = focusedTaskId === task.id;
+                            const isDimmed = isActive && focusedTaskId && !isLinked;
+                            return (
+                                <div 
+                                    key={task.id} 
+                                    className={`group flex items-start gap-3 p-3 rounded-2xl border-2 transition-all duration-300 ${
+                                        isDimmed 
+                                        ? 'opacity-30 blur-sm pointer-events-none' 
+                                        : 'opacity-100 hover:scale-[1.01] active:scale-[0.99]'
+                                    } ${
+                                        task.completed 
+                                        ? 'bg-[#f1f2f6]/50 border-transparent opacity-60' 
+                                        : 'bg-white border-[#f1f2f6] hover:border-[#78b159] hover:shadow-md'
+                                    }`}
+                                >
+                                <button onClick={() => toggleTask(task.id, task.completed, task.todoistId)} className={`mt-0.5 flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-lg border-2 flex items-center justify-center transition-colors active:scale-90 ${task.completed ? 'bg-[#78b159] border-[#78b159]' : 'border-[#d1d8e0] hover:border-[#78b159]'}`}>
+                                {task.completed && <CheckSquare size={14} className="text-white" />}
+                                </button>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <span className={`font-bold truncate text-sm sm:text-base ${task.completed ? 'line-through text-[#a4b0be]' : 'text-[#594a42]'}`}>{task.text}</span>
+                                        {task.priority > 1 && (<Flag size={12} fill="currentColor" className={`${getPriorityColor(task.priority)} flex-shrink-0`} />)}
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                        <span className="text-[9px] sm:text-[10px] font-bold text-[#8e8070] bg-[#f1f2f6] px-2 py-0.5 rounded-md border border-[#e6e2d0]">{task.category}</span>
+                                        <span className="text-[9px] sm:text-[10px] font-bold text-[#fdcb58] bg-[#fff8e1] px-2 py-0.5 rounded-md border border-[#ffe082]/50 flex items-center gap-1">🍅 {task.completedPomos || 0}/{task.estimatedPomos}</span>
+                                        {(task.dueDate || task.isSyncing || task.error) && (
+                                            <>
+                                                {task.dueDate && (<span className="text-[9px] sm:text-[10px] font-bold text-[#ff6b6b] flex items-center gap-1 bg-[#fff0f0] px-2 py-0.5 rounded-md border border-[#ff6b6b]/20"><CalendarDays size={10} />{task.dueDate}</span>)}
+                                                {task.isSyncing && <Loader2 size={12} className="text-[#fdcb58] animate-spin" />}
+                                                {task.error && <AlertCircle size={12} className="text-[#ff6b6b]" title="Sync failed" />}
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            
+                                <button
+                                    onClick={() => setFocusedTaskId(focusedTaskId === task.id ? null : task.id)}
+                                    className={`p-1.5 sm:p-2 rounded-xl transition-all active:scale-95 ${focusedTaskId === task.id ? 'bg-[#78b159] text-white shadow-md' : 'text-[#a4b0be] hover:bg-[#f1f2f6] hover:text-[#594a42]'}`}
+                                    title="Link to Timer"
+                                >
+                                    <Target size={16} />
+                                </button>
+
+                                <button onClick={() => deleteTask(task.id, task.todoistId)} className="opacity-0 group-hover:opacity-100 text-[#ff6b6b] hover:bg-[#fff0f0] p-1.5 sm:p-2 rounded-xl transition-all flex-shrink-0 active:scale-95"><Trash2 size={16} /></button>
+                            </div>
+                            );
+                        })}
+                        </div>
+                    </Card>
+                    </div>
+                )}
+            </div>
+
+            {/* Session Locked Modal */}
+            {isSessionLocked && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-pop-in">
+                    <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full border-4 border-[#ff6b6b] text-center">
+                        <div className="w-16 h-16 bg-[#fff0f0] rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Lock size={32} className="text-[#ff6b6b]" />
+                        </div>
+                        <h2 className="text-2xl font-black text-[#594a42] mb-2">Session Locked!</h2>
+                        <p className="text-[#8e8070] font-bold text-sm mb-6">
+                            You committed to focusing on: <br/>
+                            <span className="text-[#594a42] bg-[#f1f2f6] px-2 py-1 rounded mt-2 inline-block">
+                                {tasks.find(t => t.id === focusedTaskId)?.text || "Unknown Task"}
+                            </span>
+                        </p>
+                        <div className="space-y-3">
+                            <Button
+                                className="w-full"
+                                onClick={() => toggleTask(focusedTaskId, false, tasks.find(t => t.id === focusedTaskId)?.todoistId)}
+                            >
+                                Mark Completed & Unlock
+                            </Button>
+                            <p className="text-xs text-[#a4b0be] font-bold">You can't take a break until it's done!</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Intentional Start Overlay */}
+            {isIntentionalStart && (
+                <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center p-8 bg-[#78b159]/95 backdrop-blur-xl animate-pop-in text-white text-center">
+                    <div className="max-w-xl w-full">
+                        <h2 className="text-3xl sm:text-5xl font-black mb-6 tracking-tight">I am going to...</h2>
+                        <input 
+                            type="text" 
+                            value={intentionalTask}
+                            onChange={(e) => setIntentionalTask(e.target.value)}
+                            placeholder="Type your task here..."
+                            className="w-full bg-white/20 border-b-4 border-white text-white placeholder-white/60 text-2xl sm:text-4xl font-bold py-4 px-2 outline-none mb-12 text-center"
+                            autoFocus
+                            onKeyDown={(e) => e.key === 'Enter' && confirmIntent(intentionalTask)}
+                        />
+                        <div className="flex gap-4 justify-center">
+                            <Button onClick={() => setIsIntentionalStart(false)} variant="ghost" className="text-white hover:bg-white/20">Cancel</Button>
+                            <Button onClick={() => confirmIntent(intentionalTask)} variant="secondary" className="px-12 py-4 text-xl shadow-2xl">Commit</Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Breathing Guide Overlay */}
+            {isBreathing && (
+                <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center bg-[#54a0ff]/90 backdrop-blur-xl animate-pop-in text-white pointer-events-none">
+                    <div className="w-64 h-64 border-4 border-white/30 rounded-full flex items-center justify-center relative">
+                        <div className="w-full h-full bg-white/20 rounded-full absolute animate-breathe"></div>
+                        <span className="relative z-10 text-2xl font-black tracking-widest uppercase">Breathe</span>
+                    </div>
+                    <p className="mt-8 font-bold opacity-80">Resetting focus...</p>
+                </div>
+            )}
+
+            {/* Blocked Navigation Toast (For links) */}
+            {showBlockedModal && (
+                <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[70] bg-[#ff6b6b] text-white px-6 py-3 rounded-full shadow-xl animate-pop-in flex items-center gap-3">
+                    <ShieldAlert size={20} />
+                    <span className="font-bold">Navigation Blocked (Deep Focus Active)</span>
+                    <button onClick={() => setShowBlockedModal(false)} className="hover:bg-white/20 rounded-full p-1"><X size={16}/></button>
+                </div>
+            )}
+
+            {/* Enhanced Distraction Journal Modal */}
+            {showJournal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-pop-in">
+                    <div className="bg-white rounded-[2.5rem] shadow-2xl p-0 max-w-5xl w-full border-8 border-white overflow-hidden flex flex-col h-[90vh]">
+                        <div className="bg-[#fdcb58] p-6 flex justify-between items-center text-[#594a42] shrink-0">
+                            <div>
+                                <h2 className="text-2xl sm:text-3xl font-black flex items-center gap-2"><BookOpen size={28} /> Journal</h2>
+                                <p className="text-[#7d5a00] font-bold text-sm opacity-80">Capture thoughts, stay focused.</p>
+                            </div>
+                            <button onClick={() => setShowJournal(false)} className="bg-white/20 p-2 sm:p-3 rounded-full hover:bg-white/40 transition-colors active:scale-90">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        
+                        <div className="flex flex-col md:flex-row flex-1 overflow-hidden bg-[#fcfcf7]">
+                            {/* Input Side */}
+                            <div className="w-full md:w-1/2 p-6 md:p-8 border-b md:border-b-0 md:border-r border-[#e6e2d0] flex flex-col">
+                                <h3 className="text-lg font-black text-[#594a42] mb-4">New Entry</h3>
+                                <form onSubmit={addJournalEntry} className="flex flex-col h-full">
+                                    <textarea
+                                        value={journalInput}
+                                        onChange={(e) => setJournalInput(e.target.value)}
+                                        placeholder="What's on your mind?"
+                                        className="flex-1 w-full bg-white rounded-2xl p-4 font-medium text-[#594a42] outline-none border-2 border-[#e6e2d0] focus:border-[#fdcb58] focus:ring-4 focus:ring-[#fdcb58]/20 resize-none mb-4 transition-all"
+                                    />
+                                    <div className="flex justify-end">
+                                        <Button type="submit" variant="secondary" className="w-full sm:w-auto shadow-lg"><Save size={18} className="mr-2"/> Save Entry</Button>
+                                    </div>
+                                </form>
+                            </div>
+
+                            {/* History Side */}
+                            <div className="w-full md:w-1/2 p-6 md:p-8 overflow-y-auto custom-scrollbar bg-white">
+                                <h3 className="text-lg font-black text-[#594a42] mb-4 flex items-center gap-2">History <span className="text-xs bg-[#f1f2f6] px-2 py-1 rounded-full text-[#a4b0be]">{journalEntries.length}</span></h3>
+                                <div className="space-y-3">
+                                    {journalEntries.map(entry => (
+                                        <div key={entry.id} className="relative bg-[#fcfcf7] p-4 rounded-2xl border border-[#e6e2d0] hover:border-[#fdcb58] transition-colors group">
+                                            <p className="text-sm font-bold text-[#594a42] whitespace-pre-wrap pr-6">{entry.text}</p>
+                                            <div className="flex justify-between items-center mt-2 pt-2 border-t border-[#e6e2d0]/50">
+                                                <p className="text-[10px] text-[#a4b0be] font-bold">{entry.date}</p>
+                                            </div>
+                                            <button 
+                                                onClick={() => deleteJournalEntry(entry.id)} 
+                                                className="absolute top-2 right-2 p-1.5 text-[#ff6b6b] opacity-0 group-hover:opacity-100 hover:bg-[#fff0f0] rounded-lg transition-all"
+                                                title="Delete Entry"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {journalEntries.length === 0 && (
+                                        <div className="text-center py-12 text-[#a4b0be] opacity-60">
+                                            <BookOpen size={48} className="mx-auto mb-2 opacity-50"/>
+                                            <p className="text-sm font-bold italic">Your mind is clear.</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Music/Sound Modal (Split) */}
+            {showMusicModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-pop-in">
+                    <div className="bg-white rounded-[2.5rem] shadow-2xl p-0 max-w-5xl w-full border-8 border-white overflow-hidden flex flex-col h-[90vh]">
+                        <div className="bg-[#54a0ff] p-6 sm:p-8 flex justify-between items-center text-white">
+                            <div>
+                                <h2 className="text-2xl sm:text-4xl font-black tracking-tight mb-1 flex items-center gap-3"><Headphones size={32}/> Soundscapes</h2>
+                                <p className="text-white/80 font-bold text-sm sm:text-base">Mix your perfect atmosphere.</p>
+                            </div>
+                            <button onClick={() => setShowMusicModal(false)} className="bg-white/20 p-2 sm:p-3 rounded-full hover:bg-white/30 transition-colors hover:scale-110 active:scale-90">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        
+                        {/* Tab Switcher */}
+                        <div className="flex border-b border-[#e6e2d0] bg-white">
+                            <button 
+                                onClick={() => setMusicTab('spotify')} 
+                                className={`flex-1 py-4 font-black text-sm uppercase tracking-wider transition-colors ${musicTab === 'spotify' ? 'bg-[#fcfcf7] text-[#1DB954] border-b-4 border-[#1DB954]' : 'text-[#a4b0be] hover:bg-[#f1f2f6]'}`}
+                            >
+                                Spotify
+                            </button>
+                            <button 
+                                onClick={() => setMusicTab('ambient')} 
+                                className={`flex-1 py-4 font-black text-sm uppercase tracking-wider transition-colors ${musicTab === 'ambient' ? 'bg-[#fcfcf7] text-[#54a0ff] border-b-4 border-[#54a0ff]' : 'text-[#a4b0be] hover:bg-[#f1f2f6]'}`}
+                            >
+                                Ambient Mixer
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-hidden bg-[#fcfcf7] relative">
+                            {musicTab === 'spotify' && (
+                                <div className="flex flex-col md:flex-row h-full">
+                                    {/* Playlist Sidebar */}
+                                    <div className="w-full md:w-72 bg-white border-r border-[#e6e2d0] p-4 flex flex-col gap-2 overflow-y-auto custom-scrollbar">
+                                        <h3 className="text-xs font-black text-[#a4b0be] uppercase tracking-wider mb-2 px-2">Your Library</h3>
+                                        {playlists.map(playlist => (
+                                            <button 
+                                                key={playlist.id}
+                                                onClick={() => setCurrentPlaylist(playlist.url)}
+                                                className={`flex items-center justify-between p-3 rounded-xl transition-all text-left group ${currentPlaylist === playlist.url ? 'bg-[#1DB954] text-white shadow-md' : 'bg-transparent text-[#594a42] hover:bg-[#f1f2f6]'}`}
+                                            >
+                                                <div className="flex items-center gap-3 overflow-hidden">
+                                                    <ListMusic size={18} className="shrink-0" />
+                                                    <span className="font-bold text-sm truncate">{playlist.name}</span>
+                                                </div>
+                                                {currentPlaylist === playlist.url && <div className="animate-pulse bg-white/20 w-2 h-2 rounded-full"></div>}
+                                            </button>
+                                        ))}
+                                        {playlists.length === 0 && (
+                                            <div className="text-center p-4 text-[#a4b0be] text-xs font-bold italic">
+                                                No playlists yet. Add some in Settings!
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Main Player Area */}
+                                    <div className="flex-1 bg-[#121212] flex items-center justify-center p-4 relative">
+                                        {currentPlaylist ? (
+                                            <div className="w-full h-full max-w-4xl bg-black rounded-2xl overflow-hidden shadow-2xl relative border-4 border-[#282828]">
+                                                <iframe 
+                                                    src={currentPlaylist} 
+                                                    width="100%" 
+                                                    height="100%" 
+                                                    frameBorder="0" 
+                                                    allowFullScreen="" 
+                                                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
+                                                    loading="eager"
+                                                    className="absolute inset-0"
+                                                ></iframe>
+                                            </div>
+                                        ) : (
+                                            <div className="text-center text-white/50">
+                                                <Music size={64} className="mx-auto mb-4 opacity-20"/>
+                                                <p className="font-bold text-lg">Select a playlist to start listening</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {musicTab === 'ambient' && (
+                                <div className="p-8 overflow-y-auto h-full">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                        {Object.keys(DEFAULT_AUDIO).map(key => {
+                                            if (key === 'bell') return null;
+                                            const icons = { rain: CloudRain, fire: FlameKindling, cafe: Users, white: Wind };
+                                            const Icon = icons[key] || Volume2;
+                                            const labels = { rain: "Heavy Rain", fire: "Cozy Fire", cafe: "Busy Cafe", white: "White Noise" };
+                                            
+                                            return (
+                                                <div key={key} className="bg-white p-6 rounded-3xl border-2 border-[#e6e2d0] flex flex-col items-center gap-4 shadow-sm hover:shadow-md transition-shadow">
+                                                    <div className={`p-4 rounded-full ${ambientVolumes[key] > 0 ? 'bg-[#54a0ff] text-white' : 'bg-[#f1f2f6] text-[#a4b0be]'}`}>
+                                                        <Icon size={32} />
+                                                    </div>
+                                                    <span className="font-bold text-[#594a42]">{labels[key]}</span>
+                                                    <input 
+                                                        type="range" 
+                                                        min="0" max="1" step="0.05" 
+                                                        value={ambientVolumes[key] || 0}
+                                                        onChange={(e) => setAmbientVolumes({...ambientVolumes, [key]: parseFloat(e.target.value)})}
+                                                        className="w-full accent-[#54a0ff]"
+                                                    />
+                                                </div>
+                                            );
+                                        })}
+                                        {/* Custom Sounds */}
+                                        {customSounds.map((sound, idx) => (
+                                             <div key={idx} className="bg-white p-6 rounded-3xl border-2 border-[#e6e2d0] flex flex-col items-center gap-4 shadow-sm hover:shadow-md transition-shadow">
+                                                <div className={`p-4 rounded-full ${ambientVolumes[sound.name] > 0 ? 'bg-[#54a0ff] text-white' : 'bg-[#f1f2f6] text-[#a4b0be]'}`}>
+                                                    <Music size={32} />
+                                                </div>
+                                                <span className="font-bold text-[#594a42] truncate w-full text-center">{sound.name}</span>
+                                                <input 
+                                                    type="range" 
+                                                    min="0" max="1" step="0.05" 
+                                                    value={ambientVolumes[sound.name] || 0}
+                                                    onChange={(e) => setAmbientVolumes({...ambientVolumes, [sound.name]: parseFloat(e.target.value)})}
+                                                    className="w-full accent-[#54a0ff]"
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Enhanced Analytics Modal */}
+            {showAnalytics && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-pop-in">
+                <div className="bg-[#fcfcf7] rounded-[2.5rem] shadow-2xl p-0 max-w-5xl w-full border-8 border-white overflow-hidden flex flex-col h-[90vh]">
+                
+                    <div className="bg-[#78b159] p-6 sm:p-8 flex justify-between items-center text-white shrink-0">
+                    <div>
+                        <h2 className="text-2xl sm:text-4xl font-black tracking-tight mb-1">Your Dashboard</h2>
+                        <p className="text-white/80 font-bold text-sm sm:text-base">Productivity at a glance</p>
+                    </div>
+                    <button onClick={() => setShowAnalytics(false)} className="bg-white/20 p-2 sm:p-3 rounded-full hover:bg-white/30 transition-colors hover:scale-110 active:scale-90">
+                        <X size={24} />
+                    </button>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+                         {/* Analytics Sidebar */}
+                         <div className="w-full md:w-64 bg-white border-r border-[#e6e2d0] p-4 flex flex-row md:flex-col gap-2 overflow-x-auto shrink-0">
+                            <button onClick={() => setStatsTab('dashboard')} className={`p-4 rounded-2xl font-bold text-left transition-all flex items-center gap-3 active:scale-95 ${statsTab === 'dashboard' ? 'bg-[#78b159] text-white shadow-md' : 'text-[#8e8070] hover:bg-[#f1f2f6]'}`}>
+                                <BarChart2 size={20} /> Overview
+                            </button>
+                            <button onClick={() => setStatsTab('garden')} className={`p-4 rounded-2xl font-bold text-left transition-all flex items-center gap-3 active:scale-95 ${statsTab === 'garden' ? 'bg-[#fdcb58] text-[#7d5a00] shadow-md' : 'text-[#8e8070] hover:bg-[#f1f2f6]'}`}>
+                                <Sprout size={20} /> Garden
+                            </button>
+
+                            <div className="mt-auto pt-4 border-t border-[#e6e2d0] hidden md:block">
+                                <div className="p-4 rounded-2xl bg-[#fcfcf7] border-2 border-[#e6e2d0] text-center mb-2">
+                                    <h4 className="text-xs font-black text-[#a4b0be] uppercase tracking-wider mb-2">Streak</h4>
+                                    <div className="flex items-center justify-center gap-1">
+                                        {[...Array(Math.min(stats.streak, 5))].map((_, i) => <Flower key={i} size={20} className="text-[#ff6b6b]" fill="currentColor" />)}
+                                        {stats.streak > 5 && <span className="text-sm font-bold text-[#ff6b6b] ml-1">+{stats.streak - 5}</span>}
+                                        {stats.streak === 0 && <span className="text-sm font-bold text-[#a4b0be]">0</span>}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Content Container */}
+                        <div className="flex-1 flex flex-col h-full overflow-hidden">
+                            <div className="flex-1 p-6 sm:p-8 overflow-y-auto custom-scrollbar">
+                            {statsTab === 'garden' && (
+                                <div className="animate-slide-up h-full flex flex-col">
+                                    <div className="mb-6 flex justify-between items-end shrink-0">
+                                        <div>
+                                            <h3 className="font-bold text-[#594a42] text-xl flex items-center gap-2"><Sprout className="text-[#78b159]"/> Your Garden</h3>
+                                            <p className="text-[#8e8070] text-xs font-bold mt-1">Every session plants a seed.</p>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <span className="text-[#8e8070] font-bold text-sm bg-[#f1f2f6] px-3 py-1 rounded-full border border-[#e6e2d0]">Total Flora: {seeds}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className={`flex-1 bg-[#fffdf5] rounded-3xl p-6 border-4 border-[#e6e2d0] relative overflow-y-auto custom-scrollbar shadow-inner ${stats.streak === 0 ? 'grayscale contrast-125 bg-[#e0dfd5]' : ''}`}>
+                                        {seeds === 0 ? (
+                                             <div className="flex flex-col items-center justify-center h-full text-[#a4b0be] opacity-60">
+                                                <Sprout size={64} className="mb-4 opacity-50"/> 
+                                                <p className="font-bold text-lg">Your garden is empty.</p>
+                                                <p className="text-sm">Complete a session to plant your first seed!</p>
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-4 auto-rows-min pb-12">
+                                                {[...Array(seeds)].map((_, i) => {
+                                                    // Determine plant type based on index/pseudo-random
+                                                    let PlantIcon = Sprout;
+                                                    let color = "text-[#78b159]";
+                                                    
+                                                    // Simple progression: First 5 are sprouts, then flowers, then trees
+                                                    if (i > 20) { PlantIcon = Trees; color = "text-[#386641]"; }
+                                                    else if (i > 10) { PlantIcon = Flower; color = "text-[#ff6b6b]"; }
+                                                    else if (i > 5) { PlantIcon = Wheat; color = "text-[#fdcb58]"; }
+
+                                                    return (
+                                                        <div key={i} className="flex flex-col items-center animate-pop-in hover:scale-110 transition-transform cursor-help group" title={`Seed #${i+1}`}>
+                                                            <div className={`p-3 rounded-full bg-white shadow-sm border border-[#f1f2f6] group-hover:border-[#78b159] group-hover:shadow-md transition-all`}>
+                                                                <PlantIcon size={24} className={color} fill="currentColor" />
+                                                            </div>
+                                                            <div className="w-8 h-1 bg-[#e6e2d0] rounded-full mt-1 opacity-50"></div>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        )}
+                                        {stats.streak === 0 && seeds > 0 && (
+                                            <div className="absolute inset-0 pointer-events-none flex items-center justify-center bg-black/5">
+                                                <div className="bg-white/90 p-4 rounded-2xl shadow-xl text-center backdrop-blur-sm border-2 border-[#a4b0be]">
+                                                    <h4 className="font-black text-[#594a42] text-lg">Withered</h4>
+                                                    <p className="text-xs text-[#8e8070]">Start a streak to restore color!</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {statsTab === 'dashboard' && (
+                                <div className="animate-slide-up space-y-6">
+                                    {/* Top Row: Flow & Golden Hour */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="bg-white rounded-3xl p-6 shadow-sm border-2 border-[#f1f2f6] relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                                <Zap size={64} className="text-[#fdcb58]" />
+                                            </div>
+                                            <h3 className="font-bold text-[#594a42] mb-1">Flow State Index</h3>
+                                            <p className="text-xs text-[#a4b0be] mb-4">Depth of focus sessions</p>
+                                            
+                                            <div className="flex items-end gap-2 mb-2">
+                                                <span className="text-4xl font-black text-[#fdcb58]">{getFlowScore()}%</span>
+                                                <span className="text-sm font-bold text-[#8e8070] mb-1">Flow Score</span>
+                                            </div>
+                                            <p className="text-xs font-bold text-[#a4b0be]">
+                                                {stats.flowExtensions || 0} extensions vs {stats.sessions} stops.
+                                                {getFlowScore() > 50 ? " You dive deep!" : " Try extending sessions."}
+                                            </p>
+                                        </div>
+
+                                        <div className="bg-white rounded-3xl p-6 shadow-sm border-2 border-[#f1f2f6] relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                                <ThermometerSun size={64} className="text-[#ff6b6b]" />
+                                            </div>
+                                            <h3 className="font-bold text-[#594a42] mb-1">Golden Hour</h3>
+                                            <p className="text-xs text-[#a4b0be] mb-4">Peak productivity window</p>
+                                            
+                                            {getGoldenHour() ? (
+                                                <>
+                                                    <div className="flex items-end gap-2 mb-2">
+                                                        <span className="text-2xl font-black text-[#ff6b6b]">{getGoldenHour().time}</span>
+                                                    </div>
+                                                    <p className="text-xs font-bold text-[#8e8070]">
+                                                        You are <span className="text-[#ff6b6b]">{getGoldenHour().increase}%</span> more productive during this time.
+                                                    </p>
+                                                </>
+                                            ) : (
+                                                <div className="flex items-center h-full text-xs font-bold text-[#a4b0be]">Not enough data yet.</div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Daily Goal & Breaks */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="bg-white rounded-3xl p-6 shadow-sm border-2 border-[#f1f2f6]">
+                                            <h3 className="font-bold text-[#594a42] mb-4 flex justify-between">
+                                                <span>Daily Goal</span>
+                                                <span className="text-sm text-[#a4b0be]">{getTodayMinutes()} / {dailyGoal}m</span>
+                                            </h3>
+                                            <div className="w-full bg-[#f1f2f6] rounded-full h-4 overflow-hidden">
+                                                <div 
+                                                    className="bg-[#78b159] h-full rounded-full transition-all duration-1000 ease-out" 
+                                                    style={{ width: `${Math.min((getTodayMinutes() / dailyGoal) * 100, 100)}%` }}
+                                                ></div>
+                                            </div>
+                                            <p className="text-xs text-[#a4b0be] mt-2 text-right">{Math.round((getTodayMinutes() / dailyGoal) * 100)}% completed</p>
+                                        </div>
+
+                                        <div className="bg-white rounded-3xl p-6 shadow-sm border-2 border-[#f1f2f6] flex items-center justify-between">
+                                            <div>
+                                                <h3 className="font-bold text-[#594a42]">Breaks Taken</h3>
+                                                <p className="text-xs text-[#a4b0be]">Keep your mind fresh!</p>
+                                            </div>
+                                            <div className="text-3xl font-black text-[#54a0ff]">{stats.breaksCompleted || 0}</div>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Weekday vs Weekend */}
+                                    <div className="bg-white rounded-3xl p-6 shadow-sm border-2 border-[#f1f2f6]">
+                                        <h3 className="font-bold text-[#594a42] mb-4">Weekday vs. Weekend</h3>
+                                        <div className="flex gap-4 items-end h-32">
+                                            <div className="flex-1 flex flex-col gap-2">
+                                                <div className="flex-1 bg-[#f1f2f6] rounded-xl relative overflow-hidden">
+                                                    <div className="absolute bottom-0 w-full bg-[#fdcb58] transition-all duration-1000" style={{ height: `${(getWeekendVsWeekday().weekday / (Math.max(getWeekendVsWeekday().weekday, getWeekendVsWeekday().weekend, 1))) * 100}%` }}></div>
+                                                </div>
+                                                <span className="text-xs font-bold text-[#a4b0be] text-center">Weekday</span>
+                                                <span className="text-xs font-bold text-[#594a42] text-center">{getWeekendVsWeekday().weekday}m</span>
+                                            </div>
+                                            <div className="flex-1 flex flex-col gap-2">
+                                                <div className="flex-1 bg-[#f1f2f6] rounded-xl relative overflow-hidden">
+                                                    <div className="absolute bottom-0 w-full bg-[#ff6b6b] transition-all duration-1000" style={{ height: `${(getWeekendVsWeekday().weekend / (Math.max(getWeekendVsWeekday().weekday, getWeekendVsWeekday().weekend, 1))) * 100}%` }}></div>
+                                                </div>
+                                                <span className="text-xs font-bold text-[#a4b0be] text-center">Weekend</span>
+                                                <span className="text-xs font-bold text-[#594a42] text-center">{getWeekendVsWeekday().weekend}m</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Hourly Activity */}
+                                    <div className="bg-white rounded-3xl p-6 shadow-sm border-2 border-[#f1f2f6]">
+                                        <h3 className="font-bold text-[#594a42] mb-6 flex items-center gap-2">
+                                            <Clock size={18} className="text-[#54a0ff]" />
+                                            Productive Hours
+                                        </h3>
+                                        <div className="h-48 flex items-end justify-between gap-1">
+                                            {stats.hourlyActivity.map((val, idx) => {
+                                                const maxVal = Math.max(...stats.hourlyActivity, 10);
+                                                return (
+                                                    <div key={idx} className="flex-1 bg-[#f1f2f6] rounded-t-sm h-full flex items-end relative group">
+                                                        <div className="w-full bg-[#54a0ff] rounded-t-sm transition-all hover:bg-[#2e86de]" style={{ height: `${(val / maxVal) * 100}%` }}></div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        <div className="flex justify-between text-[10px] text-[#a4b0be] font-bold mt-2 px-1">
+                                            <span>00:00</span><span>12:00</span><span>23:00</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Category Distribution */}
+                                    <div className="bg-white rounded-3xl p-6 shadow-sm border-2 border-[#f1f2f6]">
+                                        <h3 className="font-bold text-[#594a42] mb-6 flex items-center gap-2">
+                                            <Layout size={18} className="text-[#fdcb58]" />
+                                            Focus Distribution
+                                        </h3>
+                                        <div className="space-y-3">
+                                            {Object.entries(stats.categoryDist).map(([cat, minutes]) => {
+                                                const total = Object.values(stats.categoryDist).reduce((a, b) => a + b, 0) || 1;
+                                                const pct = Math.round((minutes / total) * 100);
+                                                return (
+                                                    <div key={cat} className="flex items-center gap-3">
+                                                        <span className="text-xs font-bold text-[#594a42] w-20">{cat}</span>
+                                                        <div className="flex-1 h-3 bg-[#f1f2f6] rounded-full overflow-hidden">
+                                                            <div className="h-full bg-[#fdcb58] rounded-full" style={{ width: `${pct}%` }}></div>
+                                                        </div>
+                                                        <span className="text-xs font-bold text-[#a4b0be] w-12 text-right">{minutes}m</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </div>
+            )}
+
+            {/* Settings Modal */}
+            {showSettings && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-pop-in">
+                <div className="bg-white rounded-3xl shadow-2xl p-0 max-w-5xl w-full border-8 border-white flex flex-col max-h-[90vh] overflow-hidden">
+                    <div className="bg-[#f1f2f6] p-6 sm:p-8 flex justify-between items-center border-b border-[#e6e2d0]">
+                        <div>
+                            <h2 className="text-2xl sm:text-4xl font-black text-[#594a42] flex items-center gap-2">
+                                <Settings className="text-[#a4b0be]" size={32} />
+                                Settings
+                            </h2>
+                            <p className="text-[#8e8070] font-bold text-sm">Customize your nook</p>
+                        </div>
+                        <div className="flex gap-2">
+                            {todoistToken && (
+                                <button onClick={() => fetchTodoistTasks(todoistToken)} className="bg-white p-3 rounded-full hover:bg-[#e6e2d0] transition-colors shadow-sm hover:scale-110 active:scale-90" title="Sync Now">
+                                    <RefreshCw size={20} className={`text-[#78b159] ${isSyncing ? 'animate-spin' : ''}`} />
+                                </button>
+                            )}
+                            <Button variant="ghost" onClick={() => setShowSettings(false)}><X size={24} /></Button>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+                        {/* Sidebar Tabs */}
+                        <div className="w-full md:w-64 bg-[#fcfcf7] border-r border-[#e6e2d0] p-4 flex flex-row md:flex-col gap-2 overflow-x-auto">
+                            <button onClick={() => setActiveTab('timer')} className={`p-4 rounded-2xl font-bold text-left transition-all flex items-center gap-3 active:scale-95 ${activeTab === 'timer' ? 'bg-[#78b159] text-white shadow-md' : 'text-[#8e8070] hover:bg-[#f1f2f6]'}`}>
+                                <Clock size={20} /> Timer
+                            </button>
+                            <button onClick={() => setActiveTab('visuals')} className={`p-4 rounded-2xl font-bold text-left transition-all flex items-center gap-3 active:scale-95 ${activeTab === 'visuals' ? 'bg-[#fdcb58] text-[#7d5a00] shadow-md' : 'text-[#8e8070] hover:bg-[#f1f2f6]'}`}>
+                                <ImageIcon size={20} /> Visuals
+                            </button>
+                            <button onClick={() => setActiveTab('integrations')} className={`p-4 rounded-2xl font-bold text-left transition-all flex items-center gap-3 active:scale-95 ${activeTab === 'integrations' ? 'bg-[#54a0ff] text-white shadow-md' : 'text-[#8e8070] hover:bg-[#f1f2f6]'}`}>
+                                <RefreshCw size={20} /> Integrations
+                            </button>
+                        </div>
+
+                        {/* Content Area */}
+                        <div className="flex-1 overflow-y-auto p-6 sm:p-8 custom-scrollbar bg-white">
+                        {activeTab === 'timer' && (
+                            <div className="space-y-8 max-w-2xl animate-slide-up">
+                                <div>
+                                    <h3 className="text-xl font-black text-[#594a42] mb-4">Timer Durations</h3>
+                                    <div className="grid grid-cols-3 gap-4">
+                                        {Object.entries(durations).map(([key, val]) => (
+                                            <div key={key}>
+                                                <label className="text-xs font-bold text-[#a4b0be] mb-2 block capitalize tracking-wider">{key}</label>
+                                                <div className="relative">
+                                                    <input type="number" value={val} onChange={(e) => setDurations({...durations, [key]: parseInt(e.target.value) || 0})} className="w-full bg-[#fcfcf7] border-2 border-[#f1f2f6] rounded-2xl p-4 font-black text-xl text-[#594a42] outline-none focus:border-[#78b159] text-center" />
+                                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-[#a4b0be]">min</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="border-t-2 border-[#f1f2f6] pt-8">
+                                    <h3 className="text-xl font-black text-[#594a42] mb-4 flex items-center gap-2"><Target className="text-[#ff6b6b]" size={20}/> Goals & Timers</h3>
+                                    <div className="bg-[#fcfcf7] rounded-3xl p-6 space-y-6 border-2 border-[#f1f2f6]">
+                                        <div>
+                                            <label className="font-bold text-[#594a42] flex justify-between">
+                                                Daily Goal
+                                                <span className="text-[#a4b0be]">{Math.floor(dailyGoal / 60)}h {dailyGoal % 60}m</span>
+                                            </label>
+                                            <input type="range" min="30" max="480" step="15" value={dailyGoal} onChange={(e) => setDailyGoal(parseInt(e.target.value))} className="w-full accent-[#ff6b6b]" />
+                                            <p className="text-xs text-[#a4b0be] mt-1">Target productive minutes per day</p>
+                                        </div>
+                                        <div>
+                                            <label className="font-bold text-[#594a42] flex justify-between">
+                                                Breathing Exercise
+                                                <span className="text-[#a4b0be]">{breathingDuration}s</span>
+                                            </label>
+                                            <input type="range" min="5" max="60" step="5" value={breathingDuration} onChange={(e) => setBreathingDuration(parseInt(e.target.value))} className="w-full accent-[#54a0ff]" />
+                                            <p className="text-xs text-[#a4b0be] mt-1">Duration of "One Breath" break between sessions</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div className="border-t-2 border-[#f1f2f6] pt-8">
+                                    <h3 className="text-xl font-black text-[#594a42] mb-4 flex items-center gap-2"><Zap className="text-[#fdcb58]" fill="currentColor" /> Automation & Focus</h3>
+                                    <div className="bg-[#fcfcf7] rounded-3xl p-6 space-y-6 border-2 border-[#f1f2f6]">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <label className="font-bold text-[#594a42] block">Auto-start Breaks</label>
+                                                <p className="text-xs text-[#a4b0be]">Automatically start break timer when focus ends</p>
+                                            </div>
+                                            <button onClick={() => setAutoStartBreaks(!autoStartBreaks)} className={`w-14 h-8 rounded-full transition-colors relative ${autoStartBreaks ? 'bg-[#78b159]' : 'bg-[#e6e2d0]'}`}>
+                                                <div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform ${autoStartBreaks ? 'translate-x-6' : ''}`}></div>
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <label className="font-bold text-[#594a42] flex items-center gap-2">Deep Focus Mode <ShieldAlert size={14} className="text-[#ff6b6b]"/></label>
+                                                <p className="text-xs text-[#a4b0be]">Prevent navigation/closing while timer is active</p>
+                                            </div>
+                                            <button onClick={() => setIsDeepFocus(!isDeepFocus)} className={`w-14 h-8 rounded-full transition-colors relative ${isDeepFocus ? 'bg-[#ff6b6b]' : 'bg-[#e6e2d0]'}`}>
+                                                <div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform ${isDeepFocus ? 'translate-x-6' : ''}`}></div>
+                                            </button>
+                                        </div>
+                                        
+                                        {/* Time Blindness Toggle */}
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <label className="font-bold text-[#594a42] flex items-center gap-2">Show Percentage <Percent size={14} className="text-[#54a0ff]"/></label>
+                                                <p className="text-xs text-[#a4b0be]">Alternate between time remaining and % complete</p>
+                                            </div>
+                                            <button onClick={() => setShowPercentage(!showPercentage)} className={`w-14 h-8 rounded-full transition-colors relative ${showPercentage ? 'bg-[#54a0ff]' : 'bg-[#e6e2d0]'}`}>
+                                                <div className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform ${showPercentage ? 'translate-x-6' : ''}`}></div>
+                                            </button>
+                                        </div>
+
+                                        <div>
+                                                <label className="font-bold text-[#594a42] mb-2 block">Long Break Interval</label>
+                                                <div className="flex items-center gap-4">
+                                                    <input type="range" min="2" max="8" value={longBreakInterval} onChange={(e) => setLongBreakInterval(parseInt(e.target.value))} className="flex-1 accent-[#78b159]" />
+                                                    <span className="font-black text-xl text-[#594a42] bg-white px-4 py-2 rounded-xl border-2 border-[#f1f2f6]">{longBreakInterval}</span>
+                                                </div>
+                                                <p className="text-xs text-[#a4b0be] mt-1">Pomodoros before a long break</p>
+                                        </div>
+                                        
+                                        {/* New Allowed Domains Section */}
+                                        <div className="pt-4 border-t border-[#e6e2d0]">
+                                            <label className="font-bold text-[#594a42] block mb-2">Allowed Websites (Focus Mode)</label>
+                                            <p className="text-xs text-[#a4b0be] mb-3">Links to other sites will be blocked while timer is active.</p>
+                                            <div className="flex gap-2 mb-3">
+                                                <input 
+                                                    type="text" 
+                                                    value={newAllowedDomain} 
+                                                    onChange={(e) => setNewAllowedDomain(e.target.value)} 
+                                                    placeholder="e.g. youtube.com" 
+                                                    className="flex-1 bg-white border-2 border-[#e6e2d0] rounded-xl p-2 text-sm outline-none focus:border-[#78b159]"
+                                                />
+                                                <Button onClick={handleAddDomain} className="py-2 px-3 text-xs" variant="primary">Add</Button>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {allowedDomains.map(domain => (
+                                                    <span key={domain} className="bg-white border border-[#e6e2d0] rounded-lg px-2 py-1 text-xs font-bold text-[#594a42] flex items-center gap-1">
+                                                        {domain}
+                                                        <button onClick={() => handleRemoveDomain(domain)} className="text-[#ff6b6b] hover:text-[#c92a2a]"><X size={10}/></button>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {activeTab === 'visuals' && (
+                            <div className="space-y-8 max-w-2xl animate-slide-up">
+                                <div>
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="text-xl font-black text-[#594a42]">Background Presets</h3>
+                                        <button onClick={handleResetBackgrounds} className="text-xs text-[#ff6b6b] font-bold hover:underline flex items-center gap-1"><RotateCcw size={12}/> Reset Defaults</button>
+                                    </div>
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                        {bgPresets.map((preset) => (
+                                            <div key={preset.name} className="relative group">
+                                                <button onClick={() => setBgUrl(preset.url)} className={`w-full relative aspect-video rounded-2xl overflow-hidden border-4 transition-all hover:scale-105 active:scale-95 ${bgUrl === preset.url ? 'border-[#78b159] ring-4 ring-[#78b159]/20' : 'border-transparent hover:border-[#e6e2d0]'}`}>
+                                                    {getYouTubeId(preset.url) ? <img src={`https://img.youtube.com/vi/${getYouTubeId(preset.url)}/mqdefault.jpg`} className="w-full h-full object-cover" alt={preset.name} /> : preset.url ? <img src={preset.url} className="w-full h-full object-cover" alt={preset.name} /> : <div className="w-full h-full bg-[#fcfcf7]" style={{ backgroundImage: `radial-gradient(#78b159 2px, transparent 2px)`, backgroundSize: '10px 10px' }}></div>}
+                                                    <span className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] font-bold p-2 text-center backdrop-blur-sm truncate">{preset.name}</span>
+                                                </button>
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); handleRemoveBackground(preset.url); }} 
+                                                    className="absolute -top-2 -right-2 bg-white text-[#ff6b6b] p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-md hover:scale-110 z-20 border border-[#e6e2d0]"
+                                                    title="Delete Preset"
+                                                >
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="space-y-4">
+                                    <h3 className="text-xl font-black text-[#594a42]">Add Custom Background</h3>
+                                    <div className="bg-[#fcfcf7] p-6 rounded-3xl border-2 border-[#f1f2f6] flex flex-col gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-[#a4b0be] ml-1">Name</label>
+                                                <input type="text" value={newBgName} onChange={(e) => setNewBgName(e.target.value)} placeholder="e.g. Cozy Rain" className="w-full bg-white border-2 border-[#f1f2f6] rounded-xl p-3 font-medium text-sm text-[#594a42] outline-none focus:border-[#fdcb58]" />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-[#a4b0be] ml-1">Image / GIF / YouTube URL</label>
+                                                <input type="text" value={newBgUrl} onChange={(e) => setNewBgUrl(e.target.value)} placeholder="https://..." className="w-full bg-white border-2 border-[#f1f2f6] rounded-xl p-3 font-medium text-sm text-[#594a42] outline-none focus:border-[#fdcb58]" />
+                                            </div>
+                                        </div>
+                                        {newBgUrl && (
+                                            <div className="relative w-full h-32 rounded-xl overflow-hidden border-2 border-[#e6e2d0] bg-white">
+                                                {getYouTubeId(newBgUrl) ? 
+                                                    <img src={`https://img.youtube.com/vi/${getYouTubeId(newBgUrl)}/mqdefault.jpg`} className="w-full h-full object-cover opacity-80" /> 
+                                                    : <img src={newBgUrl} className="w-full h-full object-cover opacity-80" onError={(e) => e.target.style.display='none'} />
+                                                }
+                                                <div className="absolute inset-0 flex items-center justify-center font-bold text-[#594a42] bg-white/50 backdrop-blur-sm">Preview</div>
+                                            </div>
+                                        )}
+                                        <Button onClick={handleAddBackground} className="w-full py-3 text-sm shadow-md" variant="secondary" disabled={!newBgName || !newBgUrl}>Add to Library</Button>
+                                    </div>
+                                </div>
+                                <div className="space-y-4 pt-4 border-t border-[#f1f2f6]">
+                                    <label className="font-bold text-[#594a42] flex justify-between">
+                                        Overlay Opacity
+                                        <span className="text-[#a4b0be]">{Math.round(bgOpacity * 100)}%</span>
+                                    </label>
+                                    <input type="range" min="0" max="0.95" step="0.05" value={bgOpacity} onChange={(e) => setBgOpacity(parseFloat(e.target.value))} className="w-full accent-[#78b159]" />
+                                </div>
+                            </div>
+                        )}
+                        {activeTab === 'integrations' && (
+                            <div className="space-y-8 max-w-2xl animate-slide-up">
+                                <div className="bg-[#fcfcf7] p-6 rounded-3xl border-2 border-[#f1f2f6]">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="bg-[#ff6b6b] p-2 rounded-xl text-white"><CheckSquare size={24}/></div>
+                                        <h3 className="text-xl font-black text-[#594a42]">Todoist</h3>
+                                    </div>
+                                    <label className="text-xs font-bold text-[#a4b0be] mb-2 block flex items-center gap-1">API Token <a href="https://todoist.com/prefs/integrations" target="_blank" className="text-[#54a0ff] hover:underline flex items-center gap-0.5">Get it here <ExternalLink size={10} /></a></label>
+                                    <input type="password" value={todoistToken} onChange={(e) => setTodoistToken(e.target.value)} placeholder="Paste your API token" className="w-full bg-white border-2 border-[#e6e2d0] rounded-xl p-3 font-mono text-sm text-[#594a42] outline-none focus:border-[#ff6b6b] mb-2" />
+                                    <p className="text-xs text-[#8e8070]">Tasks sync every minute. Completed tasks in NookFocus will close on Todoist.</p>
+                                </div>
+
+                                <div className="bg-[#fcfcf7] p-6 rounded-3xl border-2 border-[#f1f2f6]">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="bg-[#1DB954] p-2 rounded-xl text-white"><Music size={24}/></div>
+                                        <h3 className="text-xl font-black text-[#594a42]">Spotify Playlists</h3>
+                                    </div>
+                                    
+                                    <div className="space-y-3 mb-4">
+                                        {playlists.map((playlist) => (
+                                            <div key={playlist.id} className="flex items-center justify-between bg-white p-3 rounded-xl border border-[#e6e2d0]">
+                                                <span className="text-sm font-bold text-[#594a42]">{playlist.name}</span>
+                                                <button onClick={() => handleRemovePlaylist(playlist.id)} className="text-[#ff6b6b] hover:bg-[#fff0f0] p-1.5 rounded-lg transition-colors"><Trash2 size={14}/></button>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="bg-white p-4 rounded-xl border-2 border-[#e6e2d0] space-y-3">
+                                        <h4 className="text-xs font-bold text-[#a4b0be] uppercase tracking-wider">Add New Playlist</h4>
+                                        <input 
+                                            type="text" 
+                                            value={newPlaylistName} 
+                                            onChange={(e) => setNewPlaylistName(e.target.value)} 
+                                            placeholder="Playlist Name (e.g. Lofi)" 
+                                            className="w-full bg-[#fcfcf7] rounded-lg p-2 text-sm font-medium text-[#594a42] outline-none border border-[#e6e2d0] focus:border-[#1DB954]" 
+                                        />
+                                        <input 
+                                            type="text" 
+                                            value={newPlaylistUrl} 
+                                            onChange={(e) => setNewPlaylistUrl(e.target.value)} 
+                                            placeholder="Spotify URL" 
+                                            className="w-full bg-[#fcfcf7] rounded-lg p-2 text-sm font-medium text-[#594a42] outline-none border border-[#e6e2d0] focus:border-[#1DB954]" 
+                                        />
+                                        <Button onClick={handleAddPlaylist} className="w-full py-2 text-xs" variant="primary">Add Playlist</Button>
+                                    </div>
+                                </div>
+                                
+                                {/* Add Custom Sound Section */}
+                                <div className="bg-[#fcfcf7] p-6 rounded-3xl border-2 border-[#f1f2f6]">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="bg-[#54a0ff] p-2 rounded-xl text-white"><Volume2 size={24}/></div>
+                                        <h3 className="text-xl font-black text-[#594a42]">Add Custom Sound</h3>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-xl border-2 border-[#e6e2d0] space-y-3">
+                                        <input 
+                                            type="text" 
+                                            value={newSoundName} 
+                                            onChange={(e) => setNewSoundName(e.target.value)} 
+                                            placeholder="Sound Name (e.g. Ocean Waves)" 
+                                            className="w-full bg-[#fcfcf7] rounded-lg p-2 text-sm font-medium text-[#594a42] outline-none border border-[#e6e2d0] focus:border-[#54a0ff]" 
+                                        />
+                                        <input 
+                                            type="text" 
+                                            value={newSoundUrl} 
+                                            onChange={(e) => setNewSoundUrl(e.target.value)} 
+                                            placeholder="MP3/Audio URL" 
+                                            className="w-full bg-[#fcfcf7] rounded-lg p-2 text-sm font-medium text-[#594a42] outline-none border border-[#e6e2d0] focus:border-[#54a0ff]" 
+                                        />
+                                        <Button onClick={handleAddSound} className="w-full py-2 text-xs" variant="primary">Add Sound to Mixer</Button>
+                                    </div>
+                                </div>
+
+                                {/* Backup & Restore */}
+                                <div className="bg-[#fcfcf7] p-6 rounded-3xl border-2 border-[#f1f2f6]">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="bg-[#fdcb58] p-2 rounded-xl text-[#7d5a00]"><Save size={24}/></div>
+                                        <h3 className="text-xl font-black text-[#594a42]">Island Backup</h3>
+                                    </div>
+                                    <p className="text-xs text-[#a4b0be] mb-4">Save your entire Nook configuration to a file, or restore from one.</p>
+                                    <div className="flex gap-3">
+                                        <Button onClick={handleExportData} className="flex-1 py-2 text-sm" variant="secondary">
+                                            <Download size={16} className="mr-2"/> Export Data
+                                        </Button>
+                                        <div className="flex-1">
+                                            <input 
+                                                type="file" 
+                                                ref={fileInputRef} 
+                                                onChange={handleImportData} 
+                                                className="hidden" 
+                                                accept=".json"
+                                            />
+                                            <Button onClick={() => fileInputRef.current?.click()} className="w-full py-2 text-sm" variant="neutral">
+                                                <Upload size={16} className="mr-2"/> Import Data
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        </div>
+                    </div>
+                
+                    <div className="p-6 border-t border-[#e6e2d0] bg-white flex justify-end">
+                        <Button onClick={() => setShowSettings(false)} className="px-8 shadow-lg hover:scale-105 active:scale-95">Save & Close</Button>
+                    </div>
+                </div>
+                </div>
+            )}
+            </div>
+        );
+        }
+
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
+    </script>
+  </body>
+</html>

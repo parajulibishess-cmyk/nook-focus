@@ -1,0 +1,16 @@
+﻿# Dependencies
+node_modules/
+
+# Build Output
+dist/
+dist_electron/
+release/
+
+# Environment Variables
+.env
+.env.local
+
+# IDE Files
+.vscode/
+.idea/
+*.log
