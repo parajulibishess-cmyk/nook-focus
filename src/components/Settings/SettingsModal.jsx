@@ -1,37 +1,90 @@
-import React from 'react';
-import { X, Clock, Zap } from 'lucide-react';
-const SettingsModal = ({ onClose, settings }) => {
-  const { durations, setDurations, flowDuration, setFlowDuration, intermissionDuration, setIntermissionDuration } = settings;
+import React, { useState, useRef } from 'react';
+import { X, Clock, Zap, ImageIcon, RefreshCw, Save, Upload, Download, Trash2, ShieldAlert, Percent, Target, Music, Volume2 } from 'lucide-react';
+import Button from '../UI/Button';
+
+const SettingsModal = ({ onClose, settings, exportData, importData, syncTasks, isSyncing }) => {
+  const [activeTab, setActiveTab] = useState('timer');
+  const [newAllowedDomain, setNewAllowedDomain] = useState("");
+  const [newBgName, setNewBgName] = useState("");
+  const [newBgUrl, setNewBgUrl] = useState("");
+  const [newPlaylistName, setNewPlaylistName] = useState("");
+  const [newPlaylistUrl, setNewPlaylistUrl] = useState("");
+  const [newSoundName, setNewSoundName] = useState("");
+  const [newSoundUrl, setNewSoundUrl] = useState("");
+
+  const fileInputRef = useRef(null);
+
+  const { 
+    durations, setDurations, dailyGoal, setDailyGoal, breathingDuration, setBreathingDuration,
+    autoStartBreaks, setAutoStartBreaks, longBreakInterval, setLongBreakInterval,
+    isDeepFocus, setIsDeepFocus, showPercentage, setShowPercentage, allowedDomains, setAllowedDomains,
+    bgUrl, setBgUrl, bgOpacity, setBgOpacity, bgPresets, setBgPresets,
+    todoistToken, setTodoistToken, playlists, setPlaylists, customSounds, setCustomSounds
+  } = settings;
+
+  const handleAddDomain = () => { if(newAllowedDomain) { setAllowedDomains([...allowedDomains, newAllowedDomain.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0]]); setNewAllowedDomain(""); }};
+  const handleRemoveDomain = (d) => setAllowedDomains(allowedDomains.filter(x => x !== d));
+  const handleAddBackground = () => { if(newBgName && newBgUrl) { setBgPresets([...bgPresets, { name: newBgName, url: newBgUrl, type: 'image', isCustom: true }]); setNewBgName(""); setNewBgUrl(""); }};
+  const handleRemoveBackground = (url) => setBgPresets(bgPresets.filter(p => p.url !== url));
+  const handleAddPlaylist = () => { if(newPlaylistName && newPlaylistUrl) { setPlaylists([...playlists, { id: Date.now(), name: newPlaylistName, url: newPlaylistUrl }]); setNewPlaylistName(""); setNewPlaylistUrl(""); }};
+  const handleRemovePlaylist = (id) => setPlaylists(playlists.filter(p => p.id !== id));
+  const handleAddSound = () => { if(newSoundName && newSoundUrl) { setCustomSounds([...customSounds, { name: newSoundName, url: newSoundUrl }]); setNewSoundName(""); setNewSoundUrl(""); }};
+  
+  const handleImport = (e) => { 
+      const file = e.target.files[0]; 
+      if (!file) return; 
+      const reader = new FileReader(); 
+      reader.onload = (ev) => { 
+          try { 
+              importData(JSON.parse(ev.target.result)); 
+              alert("Import Successful!"); 
+          } catch(err) { 
+              alert("Invalid file"); 
+          } 
+      }; 
+      reader.readAsText(file); 
+  };
+  
+  const handleExport = () => { const blob = new Blob([JSON.stringify(exportData(), null, 2)], { type: "application/json" }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `nookfocus_backup_${new Date().toISOString().slice(0,10)}.json`; a.click(); };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-pop-in">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl border-8 border-white flex flex-col max-h-[90vh] overflow-hidden">
-        <div className="bg-[#f1f2f6] p-6 flex justify-between items-center border-b border-gray-200">
-          <h2 className="text-2xl font-black text-nook-brown">Settings</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full"><X/></button>
-        </div>
-        <div className="p-8 overflow-y-auto space-y-8">
-          <div>
-            <h3 className="text-lg font-black text-nook-brown mb-4 flex items-center gap-2"><Clock size={20} /> Timer Durations (min)</h3>
-            <div className="grid grid-cols-3 gap-4">
-              {Object.entries(durations).map(([key, val]) => (
-                <div key={key}>
-                  <label className="text-xs font-bold text-gray-400 block capitalize mb-1">{key}</label>
-                  <input type="number" value={val} onChange={(e) => setDurations({...durations, [key]: parseInt(e.target.value)})} className="w-full bg-[#fcfcf7] border-2 border-gray-200 rounded-xl p-3 font-bold text-nook-brown text-center"/>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="border-t pt-8 border-gray-100">
-            <h3 className="text-lg font-black text-nook-brown mb-4 flex items-center gap-2"><Zap size={20} className="text-nook-yellow"/> Flow & Transitions</h3>
-            <div className="bg-[#fcfcf7] p-6 rounded-2xl border-2 border-gray-100 space-y-6">
-              <div><label className="font-bold text-nook-brown flex justify-between mb-2">Flow Extension Time<span className="text-gray-400 bg-white px-2 rounded border">{flowDuration} min</span></label><input type="range" min="5" max="60" step="5" value={flowDuration} onChange={(e) => setFlowDuration(parseInt(e.target.value))} className="w-full accent-nook-green"/></div>
-              <div><label className="font-bold text-nook-brown flex justify-between mb-2">Auto-Start Countdown<span className="text-gray-400 bg-white px-2 rounded border">{intermissionDuration} sec</span></label><input type="range" min="5" max="60" step="5" value={intermissionDuration} onChange={(e) => setIntermissionDuration(parseInt(e.target.value))} className="w-full accent-nook-yellow"/></div>
-            </div>
+      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-5xl border-8 border-white flex flex-col max-h-[90vh] overflow-hidden">
+        <div className="bg-[#f1f2f6] p-6 flex justify-between items-center border-b border-[#e6e2d0]">
+          <div><h2 className="text-2xl font-black text-[#594a42]">Settings</h2><p className="text-[#8e8070] font-bold text-sm">Customize your nook</p></div>
+          <div className="flex gap-2">
+            {todoistToken && <button onClick={syncTasks} className={`p-2 bg-white rounded-full border border-[#e6e2d0] text-[#78b159] hover:bg-[#fcfcf7] ${isSyncing ? 'animate-spin' : ''}`} title="Sync Tasks"><RefreshCw/></button>}
+            <button onClick={onClose} className="p-2 hover:bg-[#e6e2d0] rounded-full transition-colors"><X/></button>
           </div>
         </div>
-        <div className="p-6 border-t border-gray-200 bg-white flex justify-end">
-          <button onClick={onClose} className="px-6 py-2 bg-nook-green text-white font-bold rounded-full shadow-lg hover:scale-105 transition-transform">Save</button>
+        <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+            <div className="w-full md:w-64 bg-[#fcfcf7] border-r border-[#e6e2d0] p-4 flex flex-row md:flex-col gap-2 overflow-x-auto shrink-0">
+                <button onClick={() => setActiveTab('timer')} className={`p-4 rounded-2xl font-bold text-left flex items-center gap-3 ${activeTab === 'timer' ? 'bg-[#78b159] text-white' : 'text-[#8e8070] hover:bg-[#e6e2d0]'}`}><Clock size={20}/> Timer</button>
+                <button onClick={() => setActiveTab('visuals')} className={`p-4 rounded-2xl font-bold text-left flex items-center gap-3 ${activeTab === 'visuals' ? 'bg-[#fdcb58] text-[#7d5a00]' : 'text-[#8e8070] hover:bg-[#e6e2d0]'}`}><ImageIcon size={20}/> Visuals</button>
+                <button onClick={() => setActiveTab('integrations')} className={`p-4 rounded-2xl font-bold text-left flex items-center gap-3 ${activeTab === 'integrations' ? 'bg-[#54a0ff] text-white' : 'text-[#8e8070] hover:bg-[#e6e2d0]'}`}><RefreshCw size={20}/> Integrations</button>
+            </div>
+            <div className="flex-1 p-8 overflow-y-auto bg-white custom-scrollbar">
+                {activeTab === 'timer' && (
+                    <div className="space-y-8 max-w-2xl">
+                        <div><h3 className="font-black text-xl text-[#594a42] mb-4">Durations (min)</h3><div className="grid grid-cols-3 gap-4">{Object.entries(durations).map(([key, val]) => (<div key={key}><label className="text-xs font-bold text-[#a4b0be] uppercase block mb-2">{key}</label><input type="number" value={val} onChange={(e) => setDurations({...durations, [key]: parseInt(e.target.value) || 0})} className="w-full bg-[#fcfcf7] p-4 rounded-2xl font-black text-xl text-[#594a42] border-2 border-[#f1f2f6] text-center" /></div>))}</div></div>
+                        <div className="border-t-2 border-[#f1f2f6] pt-6"><h3 className="font-black text-xl text-[#594a42] mb-4 flex items-center gap-2"><Target className="text-[#ff6b6b]" size={20}/> Goals</h3><div className="bg-[#fcfcf7] p-6 rounded-3xl border-2 border-[#f1f2f6] space-y-6"><div><div className="flex justify-between font-bold text-[#594a42] mb-2"><span>Daily Goal</span><span className="text-[#a4b0be]">{Math.floor(dailyGoal/60)}h {dailyGoal%60}m</span></div><input type="range" min="30" max="480" step="15" value={dailyGoal} onChange={(e) => setDailyGoal(parseInt(e.target.value))} className="w-full accent-[#ff6b6b]"/></div><div><div className="flex justify-between font-bold text-[#594a42] mb-2"><span>Breathing Exercise</span><span className="text-[#a4b0be]">{breathingDuration}s</span></div><input type="range" min="5" max="60" step="5" value={breathingDuration} onChange={(e) => setBreathingDuration(parseInt(e.target.value))} className="w-full accent-[#54a0ff]"/></div></div></div>
+                        <div className="border-t-2 border-[#f1f2f6] pt-6"><h3 className="font-black text-xl text-[#594a42] mb-4 flex items-center gap-2"><Zap className="text-[#fdcb58]" fill="currentColor"/> Automation & Focus</h3><div className="bg-[#fcfcf7] p-6 rounded-3xl border-2 border-[#f1f2f6] space-y-6"><div className="flex justify-between items-center"><div><label className="font-bold text-[#594a42]">Auto-start Breaks</label></div><input type="checkbox" checked={autoStartBreaks} onChange={(e) => setAutoStartBreaks(e.target.checked)} className="w-6 h-6 accent-[#78b159]"/></div><div className="flex justify-between items-center"><div><label className="font-bold text-[#594a42] flex gap-2">Deep Focus Mode <ShieldAlert size={16} className="text-[#ff6b6b]"/></label><p className="text-xs text-[#a4b0be]">Block navigation while focused</p></div><input type="checkbox" checked={isDeepFocus} onChange={(e) => setIsDeepFocus(e.target.checked)} className="w-6 h-6 accent-[#ff6b6b]"/></div><div className="flex justify-between items-center"><div><label className="font-bold text-[#594a42] flex gap-2">Show Percentage <Percent size={16} className="text-[#54a0ff]"/></label></div><input type="checkbox" checked={showPercentage} onChange={(e) => setShowPercentage(e.target.checked)} className="w-6 h-6 accent-[#54a0ff]"/></div><div><label className="font-bold text-[#594a42] block mb-2">Long Break Interval</label><div className="flex gap-4 items-center"><input type="range" min="2" max="8" value={longBreakInterval} onChange={(e) => setLongBreakInterval(parseInt(e.target.value))} className="flex-1 accent-[#78b159]"/><span className="font-black text-xl text-[#594a42] bg-white px-4 py-2 rounded-xl border-2 border-[#f1f2f6]">{longBreakInterval}</span></div></div><div className="pt-4 border-t border-[#e6e2d0]"><label className="font-bold text-[#594a42] block mb-2">Allowed Websites</label><div className="flex gap-2 mb-2"><input type="text" value={newAllowedDomain} onChange={(e) => setNewAllowedDomain(e.target.value)} placeholder="e.g. youtube.com" className="flex-1 bg-white border border-[#e6e2d0] rounded-lg p-2 text-sm"/><Button onClick={handleAddDomain} className="py-2 text-xs">Add</Button></div><div className="flex flex-wrap gap-2">{allowedDomains.map(d => (<span key={d} className="bg-white border border-[#e6e2d0] px-2 py-1 rounded text-xs font-bold text-[#594a42] flex items-center gap-1">{d} <button onClick={() => handleRemoveDomain(d)} className="text-[#ff6b6b]"><X size={10}/></button></span>))}</div></div></div></div>
+                    </div>
+                )}
+                {activeTab === 'visuals' && (
+                    <div className="space-y-8"><div><h3 className="font-black text-xl text-[#594a42] mb-4">Background Presets</h3><div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{bgPresets.map(bg => (<div key={bg.url} className="relative group"><button onClick={() => setBgUrl(bg.url)} className={`w-full aspect-video rounded-xl overflow-hidden border-4 transition-all ${bgUrl === bg.url ? 'border-[#78b159] ring-4 ring-[#78b159]/20' : 'border-transparent hover:border-[#e6e2d0]'}`}><img src={bg.type === 'video' ? `https://img.youtube.com/vi/${bg.url.split('/').pop()}/mqdefault.jpg` : bg.url} className="w-full h-full object-cover" /><span className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] font-bold p-1 text-center truncate">{bg.name}</span></button>{bg.isCustom && <button onClick={() => handleRemoveBackground(bg.url)} className="absolute -top-2 -right-2 bg-white text-[#ff6b6b] p-1 rounded-full shadow border border-[#e6e2d0] opacity-0 group-hover:opacity-100"><Trash2 size={12}/></button>}</div>))}</div></div><div className="bg-[#fcfcf7] p-6 rounded-3xl border-2 border-[#f1f2f6]"><h3 className="font-black text-[#594a42] mb-4">Add Custom Background</h3><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><input type="text" value={newBgName} onChange={(e) => setNewBgName(e.target.value)} placeholder="Name" className="bg-white p-3 rounded-xl border border-[#e6e2d0] text-sm"/><input type="text" value={newBgUrl} onChange={(e) => setNewBgUrl(e.target.value)} placeholder="Image/Video URL" className="bg-white p-3 rounded-xl border border-[#e6e2d0] text-sm"/></div><Button onClick={handleAddBackground} variant="secondary" className="w-full" disabled={!newBgName || !newBgUrl}>Add to Library</Button></div><div><label className="font-bold text-[#594a42] mb-2 block">Overlay Opacity: {Math.round(bgOpacity*100)}%</label><input type="range" min="0" max="0.95" step="0.05" value={bgOpacity} onChange={(e) => setBgOpacity(parseFloat(e.target.value))} className="w-full accent-[#78b159]"/></div></div>
+                )}
+                {activeTab === 'integrations' && (
+                    <div className="space-y-8 max-w-2xl">
+                        <div className="bg-[#fcfcf7] p-6 rounded-3xl border-2 border-[#f1f2f6]"><div className="flex items-center gap-3 mb-4"><div className="bg-[#ff6b6b] p-2 rounded-xl text-white"><RefreshCw size={20}/></div><h3 className="font-black text-[#594a42] text-xl">Todoist</h3></div><input type="password" value={todoistToken} onChange={(e) => setTodoistToken(e.target.value)} placeholder="Paste API Token" className="w-full bg-white p-3 rounded-xl border border-[#e6e2d0] text-sm font-mono mb-2"/><p className="text-xs text-[#8e8070]">Syncs tasks automatically.</p></div>
+                        <div className="bg-[#fcfcf7] p-6 rounded-3xl border-2 border-[#f1f2f6]"><div className="flex items-center gap-3 mb-4"><div className="bg-[#1DB954] p-2 rounded-xl text-white"><Music size={20}/></div><h3 className="font-black text-[#594a42] text-xl">Spotify Playlists</h3></div><div className="space-y-2 mb-4">{playlists.map(p => (<div key={p.id} className="flex justify-between bg-white p-3 rounded-xl border border-[#e6e2d0]"><span className="text-sm font-bold text-[#594a42]">{p.name}</span><button onClick={() => handleRemovePlaylist(p.id)} className="text-[#ff6b6b]"><Trash2 size={14}/></button></div>))}</div><div className="space-y-2"><input type="text" value={newPlaylistName} onChange={(e) => setNewPlaylistName(e.target.value)} placeholder="Playlist Name" className="w-full bg-white p-2 rounded-lg border border-[#e6e2d0] text-xs"/><input type="text" value={newPlaylistUrl} onChange={(e) => setNewPlaylistUrl(e.target.value)} placeholder="Spotify URL" className="w-full bg-white p-2 rounded-lg border border-[#e6e2d0] text-xs"/><Button onClick={handleAddPlaylist} className="w-full py-2 text-xs">Add Playlist</Button></div></div>
+                        <div className="bg-[#fcfcf7] p-6 rounded-3xl border-2 border-[#f1f2f6]"><div className="flex items-center gap-3 mb-4"><div className="bg-[#54a0ff] p-2 rounded-xl text-white"><Volume2 size={20}/></div><h3 className="font-black text-[#594a42] text-xl">Custom Mixer Sounds</h3></div><div className="space-y-2 mb-4">{customSounds.map(s => (<div key={s.name} className="flex justify-between bg-white p-3 rounded-xl border border-[#e6e2d0]"><span className="text-sm font-bold text-[#594a42]">{s.name}</span></div>))}</div><div className="space-y-2"><input type="text" value={newSoundName} onChange={(e) => setNewSoundName(e.target.value)} placeholder="Sound Name (e.g. Ocean)" className="w-full bg-white p-2 rounded-lg border border-[#e6e2d0] text-xs"/><input type="text" value={newSoundUrl} onChange={(e) => setNewSoundUrl(e.target.value)} placeholder="MP3 URL" className="w-full bg-white p-2 rounded-lg border border-[#e6e2d0] text-xs"/><Button onClick={handleAddSound} className="w-full py-2 text-xs">Add to Mixer</Button></div></div>
+                         <div className="bg-[#fcfcf7] p-6 rounded-3xl border-2 border-[#f1f2f6]"><h3 className="font-black text-[#594a42] text-xl mb-4">Backup & Restore</h3><div className="flex gap-3"><Button onClick={handleExport} variant="secondary" className="flex-1 text-sm"><Download size={16} className="mr-2"/> Export</Button><div className="flex-1 relative"><input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".json"/><Button onClick={() => fileInputRef.current.click()} variant="neutral" className="w-full text-sm"><Upload size={16} className="mr-2"/> Import</Button></div></div></div>
+                    </div>
+                )}
+            </div>
         </div>
+        <div className="p-4 border-t border-[#e6e2d0] bg-white flex justify-end"><Button onClick={onClose} className="px-8 shadow-lg">Save & Close</Button></div>
       </div>
     </div>
   );

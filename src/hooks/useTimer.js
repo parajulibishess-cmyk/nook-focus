@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
 
+// Pre-load audio outside component to prevent re-creation
+const timerAudio = typeof Audio !== "undefined" ? new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3") : null;
+
 export const useTimer = (settings, onTimerComplete) => {
-  const [mode, setMode] = useState('focus');
+  const [mode, setMode] = useState('focus'); // focus, short, long
   const [timeLeft, setTimeLeft] = useState(settings.durations.focus * 60);
   const [isActive, setIsActive] = useState(false);
   const [endTime, setEndTime] = useState(null);
   const [isIntermission, setIsIntermission] = useState(false);
   const [intermissionTimeLeft, setIntermissionTimeLeft] = useState(0);
 
+  // Update time when settings change, but only if not active
   useEffect(() => {
     if (!isActive && !isIntermission) {
       setTimeLeft(settings.durations[mode] * 60);
@@ -17,7 +21,6 @@ export const useTimer = (settings, onTimerComplete) => {
   useEffect(() => {
     let interval = null;
     if (isActive && endTime) {
-      // UPDATED: Changed from 100 to 250
       interval = setInterval(() => {
         const diff = Math.ceil((endTime - Date.now()) / 1000);
         if (diff <= 0) {
@@ -28,36 +31,20 @@ export const useTimer = (settings, onTimerComplete) => {
         } else {
           setTimeLeft(diff);
         }
-      }, 250); // <--- Changed here
+      }, 250);
     }
     return () => clearInterval(interval);
   }, [isActive, endTime]);
-
-  useEffect(() => {
-    let interval = null;
-    if (isIntermission && intermissionTimeLeft > 0) {
-      interval = setInterval(() => setIntermissionTimeLeft(p => p - 1), 1000);
-    } else if (isIntermission && intermissionTimeLeft <= 0) {
-      finishIntermission('break');
-    }
-    return () => clearInterval(interval);
-  }, [isIntermission, intermissionTimeLeft]);
 
   const startTimer = () => { setIsIntermission(false); setEndTime(Date.now() + timeLeft * 1000); setIsActive(true); };
   const pauseTimer = () => { setIsActive(false); setEndTime(null); };
 
   const handleCompletion = () => {
-    // Note: Consider moving this URL to a local file later for offline support
-    new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3").play().catch(e => {});
-    if (mode === 'focus') {
-      setIntermissionTimeLeft(settings.intermissionDuration);
-      setIsIntermission(true);
-      if (onTimerComplete) onTimerComplete(mode, true);
-    } else {
-      if (onTimerComplete) onTimerComplete(mode, false);
-      setMode('focus');
-      setTimeLeft(settings.durations.focus * 60);
-    }
+    if(timerAudio) timerAudio.play().catch(e => console.error(e));
+    
+    // If we finished a focus session, we check "autoStartBreaks" etc in the App component via callback
+    // But basic mode switching logic happens here or in App
+    if (onTimerComplete) onTimerComplete(mode, mode === 'focus');
   };
 
   const finishIntermission = (action) => {
@@ -68,7 +55,7 @@ export const useTimer = (settings, onTimerComplete) => {
       setEndTime(Date.now() + extra * 1000);
       setIsActive(true);
     } else if (action === 'break') {
-      const next = 'short';
+      const next = 'short'; // Logic for long break can be added here
       setMode(next);
       const dur = settings.durations[next] * 60;
       setTimeLeft(dur);
@@ -79,5 +66,15 @@ export const useTimer = (settings, onTimerComplete) => {
     }
   };
 
-  return { mode, timeLeft, isActive, isIntermission, intermissionTimeLeft, startTimer, pauseTimer, finishIntermission, calculateProgress: () => ((settings.durations[mode] * 60 - timeLeft) / (settings.durations[mode] * 60)) * 100 };
+  return { 
+    mode, 
+    setMode, // EXPOSED THIS
+    timeLeft, 
+    isActive, 
+    isIntermission, 
+    startTimer, 
+    pauseTimer, 
+    finishIntermission, 
+    calculateProgress: () => ((settings.durations[mode] * 60 - timeLeft) / (settings.durations[mode] * 60)) * 100 
+  };
 };

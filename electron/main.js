@@ -6,23 +6,29 @@ function createWindow() {
     width: 1280,
     height: 800,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      webSecurity: false
+      nodeIntegration: false, // Security: Disable Node in renderer
+      contextIsolation: true, // Security: Enable context isolation
+      webSecurity: true
     },
     autoHideMenuBar: true
   });
 
-  // This is the relative path from 'electron/main.js' to 'dist/index.html'
-  // It works for both Dev (source files) and Prod (asar archive)
+  // Load the built index.html
   const indexPath = path.join(__dirname, '../dist/index.html');
 
-  console.log('Loading:', indexPath);
-
+  // In development, you might want to load the Vite URL instead:
+  // win.loadURL('http://localhost:5173'); 
+  // But for production builds, verify the file exists first:
+  
   win.loadFile(indexPath).catch(e => {
-      dialog.showErrorBox('Missing File', `Could not load app.\nPath: ${indexPath}\nError: ${e.message}`);
+      console.error('Failed to load index.html', e);
+      // Fallback for development if file not found (optional)
+      // win.loadURL('http://localhost:5173');
   });
 }
 
 app.whenReady().then(createWindow);
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
