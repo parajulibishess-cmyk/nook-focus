@@ -1,14 +1,18 @@
 import React from 'react';
 
-const Card = ({ children, className = "", transparent = false }) => (
+const Card = ({ children, className = "", transparent = false }) => {
+  return (
     <div className={`
-        rounded-3xl p-6 transition-all duration-700 ease-out
-        ${transparent
-        ? 'bg-transparent border-2 border-transparent shadow-none backdrop-filter-none'
-        : 'bg-white/70 backdrop-blur-md shadow-xl border-2 border-white/50 hover:shadow-2xl hover:bg-white/80'}
-        ${className}
+      relative rounded-[2rem] transition-all duration-500 overflow-hidden
+      ${transparent 
+        ? 'bg-white/30 backdrop-blur-md border-2 border-white/50 shadow-sm' 
+        : 'bg-white border-[3px] border-[#f0f0e6] shadow-[0_8px_30px_rgb(0,0,0,0.04)]'
+      }
+      ${className}
     `}>
-        {children}
+      {children}
     </div>
-);
+  );
+};
+
 export default Card;
