@@ -1,8 +1,13 @@
 ﻿import React from 'react';
 import { Play, Pause, Zap, Coffee } from 'lucide-react';
 import Button from '../UI/Button';
+import { useTimer } from '../../hooks/useTimer'; // ADDED: Import the hook
 
-const TimerDisplay = ({ timer, settings }) => {
+// UPDATED: Destructure only 'settings', remove 'timer' from props
+const TimerDisplay = ({ settings }) => {
+  // ADDED: Initialize the hook here
+  const timer = useTimer(settings);
+  
   const { timeLeft, isActive, mode, isIntermission, intermissionTimeLeft, startTimer, pauseTimer, finishIntermission, calculateProgress } = timer;
   
   const formatTime = (s) => {

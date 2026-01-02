@@ -17,6 +17,7 @@ export const useTimer = (settings, onTimerComplete) => {
   useEffect(() => {
     let interval = null;
     if (isActive && endTime) {
+      // UPDATED: Changed from 100 to 250
       interval = setInterval(() => {
         const diff = Math.ceil((endTime - Date.now()) / 1000);
         if (diff <= 0) {
@@ -27,7 +28,7 @@ export const useTimer = (settings, onTimerComplete) => {
         } else {
           setTimeLeft(diff);
         }
-      }, 100);
+      }, 250); // <--- Changed here
     }
     return () => clearInterval(interval);
   }, [isActive, endTime]);
@@ -46,6 +47,7 @@ export const useTimer = (settings, onTimerComplete) => {
   const pauseTimer = () => { setIsActive(false); setEndTime(null); };
 
   const handleCompletion = () => {
+    // Note: Consider moving this URL to a local file later for offline support
     new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3").play().catch(e => {});
     if (mode === 'focus') {
       setIntermissionTimeLeft(settings.intermissionDuration);
