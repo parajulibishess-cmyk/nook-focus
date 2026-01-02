@@ -1,12 +1,19 @@
 import React, { useState } from 'react';
-import { X, BarChart2, Sprout, Zap, Clock, ThermometerSun, Layout, Flower2, TreeDeciduous, Wheat } from 'lucide-react';
+import { useStats } from '../../context/StatsContext';
+import { useSettings } from '../../context/SettingsContext';
+import { X, BarChart2, Sprout, Zap, ThermometerSun, Layout, Flower2, TreeDeciduous, Wheat } from 'lucide-react';
 
-const AnalyticsModal = ({ onClose, stats, seeds, dailyGoal }) => {
+const AnalyticsModal = ({ onClose }) => {
+  // CONNECT TO CONTEXT
+  const { stats, seeds } = useStats();
+  const { dailyGoal } = useSettings();
+  
   const [tab, setTab] = useState('dashboard');
 
   const getTodayMinutes = () => {
       if (!stats.dailyHistory) return 0;
-      return stats.dailyHistory[new Date().toISOString().split('T')[0]] || 0;
+      const today = new Date().toISOString().split('T')[0];
+      return stats.dailyHistory[today] || 0;
   };
 
   const getFlowScore = () => {
@@ -19,18 +26,6 @@ const AnalyticsModal = ({ onClose, stats, seeds, dailyGoal }) => {
       const maxVal = Math.max(...stats.hourlyActivity);
       const hour = stats.hourlyActivity.indexOf(maxVal);
       return { time: `${hour}:00 - ${(hour + 1) % 24}:00` };
-  };
-
-  const getWeekendVsWeekday = () => {
-      let weekend = 0, weekday = 0;
-      if (stats.dailyHistory) {
-          Object.entries(stats.dailyHistory).forEach(([dateStr, mins]) => { 
-              const d = new Date(dateStr).getDay(); 
-              if(d === 0 || d === 6) weekend += mins; 
-              else weekday += mins; 
-          });
-      }
-      return { weekend, weekday };
   };
 
   const distMax = Math.max(...Object.values(stats.categoryDist || { "General": 0 }), 1);
@@ -66,7 +61,7 @@ const AnalyticsModal = ({ onClose, stats, seeds, dailyGoal }) => {
                             </div>
                             <div className="bg-white rounded-3xl p-6 border-2 border-[#f1f2f6]"><h3 className="font-bold text-[#594a42] mb-6 flex items-center gap-2"><Layout size={18} className="text-[#fdcb58]"/> Focus Distribution</h3>
                                 <div className="space-y-3">
-                                    {Object.entries(stats.categoryDist).map(([cat, mins]) => (
+                                    {Object.entries(stats.categoryDist || {}).map(([cat, mins]) => (
                                         <div key={cat} className="flex items-center gap-3">
                                             <span className="text-xs font-bold text-[#594a42] w-20">{cat}</span>
                                             <div className="flex-1 h-3 bg-[#f1f2f6] rounded-full overflow-hidden"><div className="h-full bg-[#fdcb58]" style={{ width: `${(mins / distMax) * 100}%` }}></div></div>
@@ -82,7 +77,7 @@ const AnalyticsModal = ({ onClose, stats, seeds, dailyGoal }) => {
                             <div className="mb-6 flex justify-between items-end"><div><h3 className="font-bold text-[#594a42] text-xl">Your Garden</h3><p className="text-[#8e8070] text-xs font-bold">Every session plants a seed.</p></div><span className="bg-[#f1f2f6] px-3 py-1 rounded-full text-xs font-bold text-[#8e8070] border border-[#e6e2d0]">Total Flora: {seeds}</span></div>
                             <div className={`flex-1 bg-[#fffdf5] rounded-3xl p-6 border-4 border-[#e6e2d0] relative overflow-y-auto custom-scrollbar shadow-inner ${stats.streak === 0 ? 'grayscale bg-[#e0dfd5]' : ''}`}>
                                 <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-4 pb-12">
-                                    {[...Array(seeds)].map((_, i) => { 
+                                    {[...Array(seeds || 0)].map((_, i) => { 
                                         let Icon = Sprout; 
                                         let color = "text-[#78b159]"; 
                                         if (i > 20) { Icon = TreeDeciduous; color = "text-[#386641]"; } 
@@ -91,7 +86,7 @@ const AnalyticsModal = ({ onClose, stats, seeds, dailyGoal }) => {
                                         return <div key={i} className="flex flex-col items-center animate-pop-in hover:scale-110 transition-transform"><div className="p-3 rounded-full bg-white shadow-sm border border-[#f1f2f6]"><Icon size={24} className={color} fill="currentColor"/></div><div className="w-8 h-1 bg-[#e6e2d0] rounded-full mt-1 opacity-50"></div></div> 
                                     })}
                                 </div>
-                                {seeds === 0 && <div className="absolute inset-0 flex flex-col items-center justify-center text-[#a4b0be] opacity-60"><Sprout size={64} className="mb-4"/><p className="font-bold">Your garden is empty.</p></div>}
+                                {(!seeds || seeds === 0) && <div className="absolute inset-0 flex flex-col items-center justify-center text-[#a4b0be] opacity-60"><Sprout size={64} className="mb-4"/><p className="font-bold">Your garden is empty.</p></div>}
                             </div>
                         </div>
                     )}

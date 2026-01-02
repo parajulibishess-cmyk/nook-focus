@@ -1,8 +1,21 @@
 import React, { useState, useRef } from 'react';
+import { useSettings } from '../../context/SettingsContext';
+import { useMedia } from '../../context/MediaContext';
+import { useTasks } from '../../context/TaskContext';
 import { X, Clock, Zap, ImageIcon, RefreshCw, Save, Upload, Download, Trash2, ShieldAlert, Percent, Target, Music, Volume2 } from 'lucide-react';
 import Button from '../UI/Button';
 
-const SettingsModal = ({ onClose, settings, exportData, importData, syncTasks, isSyncing }) => {
+const SettingsModal = ({ onClose }) => {
+  // CONNECT TO CONTEXTS
+  const { 
+    durations, setDurations, dailyGoal, setDailyGoal, breathingDuration, setBreathingDuration,
+    autoStartBreaks, setAutoStartBreaks, longBreakInterval, setLongBreakInterval,
+    isDeepFocus, setIsDeepFocus, showPercentage, setShowPercentage, allowedDomains, setAllowedDomains
+  } = useSettings();
+
+  const { bgUrl, setBgUrl, bgOpacity, setBgOpacity, bgPresets, setBgPresets, playlists, setPlaylists, customSounds, setCustomSounds } = useMedia();
+  const { todoistToken, setTodoistToken, fetchTodoistTasks, isSyncing } = useTasks();
+
   const [activeTab, setActiveTab] = useState('timer');
   const [newAllowedDomain, setNewAllowedDomain] = useState("");
   const [newBgName, setNewBgName] = useState("");
@@ -11,16 +24,7 @@ const SettingsModal = ({ onClose, settings, exportData, importData, syncTasks, i
   const [newPlaylistUrl, setNewPlaylistUrl] = useState("");
   const [newSoundName, setNewSoundName] = useState("");
   const [newSoundUrl, setNewSoundUrl] = useState("");
-
   const fileInputRef = useRef(null);
-
-  const { 
-    durations, setDurations, dailyGoal, setDailyGoal, breathingDuration, setBreathingDuration,
-    autoStartBreaks, setAutoStartBreaks, longBreakInterval, setLongBreakInterval,
-    isDeepFocus, setIsDeepFocus, showPercentage, setShowPercentage, allowedDomains, setAllowedDomains,
-    bgUrl, setBgUrl, bgOpacity, setBgOpacity, bgPresets, setBgPresets,
-    todoistToken, setTodoistToken, playlists, setPlaylists, customSounds, setCustomSounds
-  } = settings;
 
   const handleAddDomain = () => { if(newAllowedDomain) { setAllowedDomains([...allowedDomains, newAllowedDomain.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0]]); setNewAllowedDomain(""); }};
   const handleRemoveDomain = (d) => setAllowedDomains(allowedDomains.filter(x => x !== d));
@@ -29,23 +33,29 @@ const SettingsModal = ({ onClose, settings, exportData, importData, syncTasks, i
   const handleAddPlaylist = () => { if(newPlaylistName && newPlaylistUrl) { setPlaylists([...playlists, { id: Date.now(), name: newPlaylistName, url: newPlaylistUrl }]); setNewPlaylistName(""); setNewPlaylistUrl(""); }};
   const handleRemovePlaylist = (id) => setPlaylists(playlists.filter(p => p.id !== id));
   const handleAddSound = () => { if(newSoundName && newSoundUrl) { setCustomSounds([...customSounds, { name: newSoundName, url: newSoundUrl }]); setNewSoundName(""); setNewSoundUrl(""); }};
-  
+
   const handleImport = (e) => { 
       const file = e.target.files[0]; 
       if (!file) return; 
       const reader = new FileReader(); 
       reader.onload = (ev) => { 
           try { 
-              importData(JSON.parse(ev.target.result)); 
-              alert("Import Successful!"); 
-          } catch(err) { 
-              alert("Invalid file"); 
-          } 
+              const data = JSON.parse(ev.target.result);
+              if(data.durations) setDurations(data.durations);
+              if(data.bgPresets) setBgPresets(data.bgPresets);
+              // Add other import logic as needed
+              alert("Import Successful! Some settings updated."); 
+          } catch(err) { alert("Invalid file"); } 
       }; 
       reader.readAsText(file); 
   };
   
-  const handleExport = () => { const blob = new Blob([JSON.stringify(exportData(), null, 2)], { type: "application/json" }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `nookfocus_backup_${new Date().toISOString().slice(0,10)}.json`; a.click(); };
+  const handleExport = () => { 
+      const data = { durations, bgPresets, playlists, allowedDomains, customSounds };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); 
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); 
+      a.download = `nookfocus_backup_${new Date().toISOString().slice(0,10)}.json`; a.click(); 
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-pop-in">
@@ -53,7 +63,7 @@ const SettingsModal = ({ onClose, settings, exportData, importData, syncTasks, i
         <div className="bg-[#f1f2f6] p-6 flex justify-between items-center border-b border-[#e6e2d0]">
           <div><h2 className="text-2xl font-black text-[#594a42]">Settings</h2><p className="text-[#8e8070] font-bold text-sm">Customize your nook</p></div>
           <div className="flex gap-2">
-            {todoistToken && <button onClick={syncTasks} className={`p-2 bg-white rounded-full border border-[#e6e2d0] text-[#78b159] hover:bg-[#fcfcf7] ${isSyncing ? 'animate-spin' : ''}`} title="Sync Tasks"><RefreshCw/></button>}
+            {todoistToken && <button onClick={fetchTodoistTasks} className={`p-2 bg-white rounded-full border border-[#e6e2d0] text-[#78b159] hover:bg-[#fcfcf7] ${isSyncing ? 'animate-spin' : ''}`} title="Sync Tasks"><RefreshCw/></button>}
             <button onClick={onClose} className="p-2 hover:bg-[#e6e2d0] rounded-full transition-colors"><X/></button>
           </div>
         </div>
