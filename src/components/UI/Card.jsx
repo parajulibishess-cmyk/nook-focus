@@ -4,14 +4,14 @@ import { twMerge } from 'tailwind-merge';
 
 const Card = ({ children, className = "", transparent = false, delay = 0 }) => (
     <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ type: "spring", stiffness: 300, damping: 25, delay: delay }}
+        initial={{ opacity: 0, y: 30, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ type: "spring", stiffness: 200, damping: 20, delay: delay }}
         className={twMerge(
-            "rounded-[2rem] p-6 transition-colors duration-500",
+            "rounded-[2.5rem] p-8 transition-all duration-500",
             transparent
-            ? 'bg-white/10 backdrop-blur-none border-2 border-white/20 shadow-none'
-            : 'bg-white/80 backdrop-blur-xl shadow-xl border-4 border-white',
+            ? 'bg-white/10 backdrop-blur-md border-2 border-white/30 shadow-none'
+            : 'nook-glass', // Uses the custom CSS class
             className
         )}
     >
