@@ -9,7 +9,14 @@ export const TaskProvider = ({ children }) => {
   const [todoistToken, setTodoistToken] = useState(() => localStorage.getItem('nook_todoist_token') || "");
   const [isSyncing, setIsSyncing] = useState(false);
 
-  useEffect(() => { localStorage.setItem('nook_tasks', JSON.stringify(tasks)); }, [tasks]);
+  // OPTIMIZATION: Debounce localStorage writes to prevent blocking on every keystroke/update
+  useEffect(() => { 
+    const handler = setTimeout(() => {
+        localStorage.setItem('nook_tasks', JSON.stringify(tasks));
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [tasks]);
+
   useEffect(() => { localStorage.setItem('nook_todoist_token', todoistToken); }, [todoistToken]);
 
   const fetchTodoistTasks = async () => {

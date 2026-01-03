@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 // Pre-load audio outside component to prevent re-creation
 const timerAudio = typeof Audio !== "undefined" ? new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3") : null;
@@ -34,25 +34,33 @@ export const useTimer = (settings, onTimerComplete) => {
           clearInterval(intervalRef.current);
         } else {
             // OPTIMIZATION: Only trigger a re-render if the integer second has actually changed.
-            // Previously this ran 4x a second, forcing the whole App to re-render 4x a second.
             setTimeLeft(prev => (prev === diff ? prev : diff));
         }
-      }, 200); // Check frequently to catch the second boundary, but update state rarely
+      }, 200); 
     } else {
         clearInterval(intervalRef.current);
     }
     return () => clearInterval(intervalRef.current);
   }, [isActive, endTime]);
 
-  const startTimer = () => { setIsIntermission(false); setEndTime(Date.now() + timeLeft * 1000); setIsActive(true); };
-  const pauseTimer = () => { setIsActive(false); setEndTime(null); };
+  // WRAPPED IN CALLBACK to prevent recreation on every render
+  const startTimer = useCallback(() => { 
+      setIsIntermission(false); 
+      setEndTime(Date.now() + timeLeft * 1000); 
+      setIsActive(true); 
+  }, [timeLeft]);
+
+  const pauseTimer = useCallback(() => { 
+      setIsActive(false); 
+      setEndTime(null); 
+  }, []);
 
   const handleCompletion = () => {
     if(timerAudio) timerAudio.play().catch(e => console.error(e));
     if (onTimerComplete) onTimerComplete(mode, mode === 'focus');
   };
 
-  const finishIntermission = (action) => {
+  const finishIntermission = useCallback((action) => {
     setIsIntermission(false);
     if (action === 'extend') {
       const extra = settings.flowDuration * 60;
@@ -69,9 +77,14 @@ export const useTimer = (settings, onTimerComplete) => {
         setIsActive(true);
       }
     }
-  };
+  }, [settings]);
 
-  return { 
+  const calculateProgress = useCallback(() => {
+    return ((settings.durations[mode] * 60 - timeLeft) / (settings.durations[mode] * 60)) * 100;
+  }, [settings.durations, mode, timeLeft]);
+
+  // WRAPPED IN MEMO to ensure referential stability when values haven't changed
+  return useMemo(() => ({ 
     mode, 
     setMode,
     timeLeft, 
@@ -80,6 +93,6 @@ export const useTimer = (settings, onTimerComplete) => {
     startTimer, 
     pauseTimer, 
     finishIntermission, 
-    calculateProgress: () => ((settings.durations[mode] * 60 - timeLeft) / (settings.durations[mode] * 60)) * 100 
-  };
+    calculateProgress
+  }), [mode, timeLeft, isActive, isIntermission, startTimer, pauseTimer, finishIntermission, calculateProgress]);
 };

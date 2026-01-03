@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react'; // Added memo
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { useTasks } from '../../context/TaskContext';
 import { useStats } from '../../context/StatsContext';
@@ -6,7 +6,8 @@ import { Plus, CheckSquare, Flag, CalendarDays, Target, Trash2, Layers, Briefcas
 import Card from '../UI/Card';
 import Calendar from '../UI/Calendar';
 
-const TaskSection = ({ transparent }) => {
+// WRAPPED IN MEMO to prevent re-renders on every timer tick
+const TaskSection = memo(({ transparent }) => {
   const { tasks, setTasks, focusedTaskId, setFocusedTaskId, todoistToken } = useTasks();
   const { setStats } = useStats(); 
   const [newTask, setNewTask] = useState("");
@@ -135,7 +136,6 @@ const TaskSection = ({ transparent }) => {
                     
                     let opacityClass = transparent ? (isFocused ? 'opacity-100 bg-white scale-[1.02] shadow-xl border-[#78b159] z-10' : 'opacity-30 blur-[1px] grayscale scale-95 border-transparent') : (task.completed ? 'opacity-60 bg-[#f1f2f6] border-transparent' : 'bg-white opacity-100 border-[#f1f2f6] hover:border-[#78b159] hover:shadow-md');
                     
-                    // Overdue styling
                     if (isOverdue && !transparent && !task.completed) {
                         opacityClass = 'bg-[#ff6b6b]/5 border-[#ff6b6b]/30 hover:border-[#ff6b6b]';
                     }
@@ -178,5 +178,6 @@ const TaskSection = ({ transparent }) => {
       </div>
     </Card>
   );
-};
+});
+
 export default TaskSection;
