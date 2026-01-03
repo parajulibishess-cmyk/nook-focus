@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useMemo } from 'react';
 
 const TaskContext = createContext();
 export const useTasks = () => useContext(TaskContext);
@@ -37,13 +37,15 @@ export const TaskProvider = ({ children }) => {
     } catch(e){ console.error(e); } finally { setIsSyncing(false); }
   };
 
+  const value = useMemo(() => ({
+    tasks, setTasks, 
+    focusedTaskId, setFocusedTaskId, 
+    todoistToken, setTodoistToken, 
+    fetchTodoistTasks, isSyncing 
+  }), [tasks, focusedTaskId, todoistToken, isSyncing]);
+
   return (
-    <TaskContext.Provider value={{ 
-      tasks, setTasks, 
-      focusedTaskId, setFocusedTaskId, 
-      todoistToken, setTodoistToken, 
-      fetchTodoistTasks, isSyncing 
-    }}>
+    <TaskContext.Provider value={value}>
       {children}
     </TaskContext.Provider>
   );

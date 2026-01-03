@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 // Pre-load audio outside component to prevent re-creation
 const timerAudio = typeof Audio !== "undefined" ? new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3") : null;
@@ -9,31 +9,39 @@ export const useTimer = (settings, onTimerComplete) => {
   const [isActive, setIsActive] = useState(false);
   const [endTime, setEndTime] = useState(null);
   const [isIntermission, setIsIntermission] = useState(false);
-  const [intermissionTimeLeft, setIntermissionTimeLeft] = useState(0);
+  
+  // Ref for the interval to clear it cleanly
+  const intervalRef = useRef(null);
 
   // Update time when settings change, but only if not active
   useEffect(() => {
     if (!isActive && !isIntermission) {
       setTimeLeft(settings.durations[mode] * 60);
     }
-  }, [settings.durations, mode]);
+  }, [settings.durations, mode, isActive, isIntermission]);
 
   useEffect(() => {
-    let interval = null;
     if (isActive && endTime) {
-      interval = setInterval(() => {
-        const diff = Math.ceil((endTime - Date.now()) / 1000);
+      intervalRef.current = setInterval(() => {
+        const now = Date.now();
+        const diff = Math.ceil((endTime - now) / 1000);
+        
         if (diff <= 0) {
           setTimeLeft(0);
           setIsActive(false);
           setEndTime(null);
           handleCompletion();
+          clearInterval(intervalRef.current);
         } else {
-          setTimeLeft(diff);
+            // OPTIMIZATION: Only trigger a re-render if the integer second has actually changed.
+            // Previously this ran 4x a second, forcing the whole App to re-render 4x a second.
+            setTimeLeft(prev => (prev === diff ? prev : diff));
         }
-      }, 250);
+      }, 200); // Check frequently to catch the second boundary, but update state rarely
+    } else {
+        clearInterval(intervalRef.current);
     }
-    return () => clearInterval(interval);
+    return () => clearInterval(intervalRef.current);
   }, [isActive, endTime]);
 
   const startTimer = () => { setIsIntermission(false); setEndTime(Date.now() + timeLeft * 1000); setIsActive(true); };
@@ -41,9 +49,6 @@ export const useTimer = (settings, onTimerComplete) => {
 
   const handleCompletion = () => {
     if(timerAudio) timerAudio.play().catch(e => console.error(e));
-    
-    // If we finished a focus session, we check "autoStartBreaks" etc in the App component via callback
-    // But basic mode switching logic happens here or in App
     if (onTimerComplete) onTimerComplete(mode, mode === 'focus');
   };
 
@@ -55,7 +60,7 @@ export const useTimer = (settings, onTimerComplete) => {
       setEndTime(Date.now() + extra * 1000);
       setIsActive(true);
     } else if (action === 'break') {
-      const next = 'short'; // Logic for long break can be added here
+      const next = 'short'; 
       setMode(next);
       const dur = settings.durations[next] * 60;
       setTimeLeft(dur);
@@ -68,7 +73,7 @@ export const useTimer = (settings, onTimerComplete) => {
 
   return { 
     mode, 
-    setMode, // EXPOSED THIS
+    setMode,
     timeLeft, 
     isActive, 
     isIntermission, 

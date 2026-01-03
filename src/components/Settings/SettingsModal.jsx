@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettings } from '../../context/SettingsContext';
 import { useMedia } from '../../context/MediaContext';
@@ -6,6 +6,32 @@ import { useTasks } from '../../context/TaskContext';
 import { X, Clock, Zap, ImageIcon, RefreshCw, Upload, Download, Trash2, ShieldAlert, Percent, Target, Music, Plus, Check, Volume2 } from 'lucide-react';
 import Button from '../UI/Button';
 import { twMerge } from 'tailwind-merge';
+
+// Helper: Buffered Input to prevent re-render storms while typing
+const BufferedInput = ({ value, onCommit, className, type = "text", ...props }) => {
+    const [localValue, setLocalValue] = useState(value);
+    
+    // Sync local state if external prop changes significantly
+    useEffect(() => { setLocalValue(value); }, [value]);
+
+    const handleBlur = () => {
+        if (localValue !== value) {
+            onCommit(localValue);
+        }
+    };
+
+    return (
+        <input 
+            type={type}
+            value={localValue}
+            onChange={(e) => setLocalValue(e.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+            className={className}
+            {...props}
+        />
+    );
+};
 
 const Toggle = ({ label, checked, onChange, icon: Icon, color = "bg-[#78b159]" }) => (
     <div className="flex items-center justify-between bg-white/60 p-4 rounded-2xl border-2 border-white/50">
@@ -51,6 +77,11 @@ const SettingsModal = ({ onClose }) => {
   const handleAddSound = () => { if(newSoundName && newSoundUrl) { setCustomSounds([...customSounds, { name: newSoundName, url: newSoundUrl }]); setNewSoundName(""); setNewSoundUrl(""); }};
   const handleRemoveSound = (name) => setCustomSounds(customSounds.filter(s => s.name !== name));
 
+  const handleDurationChange = (key, val) => {
+      const numVal = parseInt(val) || 0;
+      setDurations(prev => ({ ...prev, [key]: numVal }));
+  };
+
   const handleImport = (e) => { 
       const file = e.target.files[0]; 
       if (!file) return; 
@@ -82,15 +113,22 @@ const SettingsModal = ({ onClose }) => {
 
   return (
     <motion.div 
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-[#594a42]/30 backdrop-blur-sm"
+        key="settings-modal-backdrop"
+        initial={{ opacity: 0 }} 
+        animate={{ opacity: 1 }} 
+        exit={{ opacity: 0, transition: { duration: 0.2 } }}
+        onClick={(e) => e.target === e.currentTarget && onClose()} // Close on backdrop click
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-[#594a42]/30 backdrop-blur-sm cursor-pointer"
+        style={{ pointerEvents: 'auto' }} // Ensure clicks register
     >
       <motion.div 
+        key="settings-modal-content"
         initial={{ scale: 0.9, y: 40, opacity: 0 }} 
         animate={{ scale: 1, y: 0, opacity: 1 }} 
-        exit={{ scale: 0.9, y: 40, opacity: 0 }}
+        exit={{ scale: 0.95, y: 20, opacity: 0, transition: { duration: 0.15 } }} // Faster exit
         transition={{ type: "spring", stiffness: 350, damping: 25 }}
-        className="bg-[#fcfcf7] w-full max-w-5xl h-[85vh] rounded-[3rem] shadow-2xl border-4 border-white flex flex-col overflow-hidden ring-4 ring-black/5"
+        onClick={(e) => e.stopPropagation()} // Prevent close when clicking content
+        className="bg-[#fcfcf7] w-full max-w-5xl h-[85vh] rounded-[3rem] shadow-2xl border-4 border-white flex flex-col overflow-hidden ring-4 ring-black/5 cursor-default relative z-50"
       >
         {/* Header */}
         <div className="bg-white/50 backdrop-blur-md p-6 flex justify-between items-center border-b border-black/5 shrink-0 z-10">
@@ -124,7 +162,8 @@ const SettingsModal = ({ onClose }) => {
                             <tab.icon size={22} strokeWidth={2.5}/>
                         </div>
                         <span className="text-lg">{tab.label}</span>
-                        {activeTab === tab.id && <motion.div layoutId="activeTabIndicator" className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#78b159]" />}
+                        {/* Removed layoutId to prevent unmount glitches */}
+                        {activeTab === tab.id && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#78b159]" />}
                     </button>
                 ))}
             </div>
@@ -134,10 +173,10 @@ const SettingsModal = ({ onClose }) => {
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={activeTab}
-                        initial={{ opacity: 0, x: 20 }}
+                        initial={{ opacity: 0, x: 10 }}
                         animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        transition={{ duration: 0.2 }}
+                        exit={{ opacity: 0, x: -10 }}
+                        transition={{ duration: 0.15 }} // Speed up tab switching
                         className="space-y-10 max-w-3xl mx-auto pb-20"
                     >
                         {activeTab === 'timer' && (
@@ -147,10 +186,10 @@ const SettingsModal = ({ onClose }) => {
                                         {Object.entries(durations).map(([key, val]) => (
                                             <div key={key} className="bg-white p-5 rounded-[2rem] border-2 border-white shadow-sm flex flex-col items-center gap-2">
                                                 <span className="text-xs font-black text-[#a4b0be] uppercase tracking-widest">{key}</span>
-                                                <input 
+                                                <BufferedInput 
                                                     type="number" 
                                                     value={val} 
-                                                    onChange={(e) => setDurations({...durations, [key]: parseInt(e.target.value) || 0})} 
+                                                    onCommit={(v) => handleDurationChange(key, v)} 
                                                     className="w-full bg-transparent text-center font-black text-3xl text-[#594a42] outline-none" 
                                                 />
                                             </div>
@@ -273,7 +312,7 @@ const SettingsModal = ({ onClose }) => {
                                 <Section title="Todoist Sync" icon={RefreshCw} iconColor="bg-[#ff6b6b]">
                                     <div className="bg-white/60 p-6 rounded-[2.5rem] border-2 border-white/50">
                                         <div className="flex gap-4">
-                                            <input type="password" value={todoistToken} onChange={(e) => setTodoistToken(e.target.value)} placeholder="Paste your API Token here" className="flex-1 bg-white px-5 py-3 rounded-2xl border-2 border-transparent focus:border-[#ff6b6b] outline-none font-mono text-sm text-[#594a42] shadow-sm"/>
+                                            <BufferedInput type="password" value={todoistToken} onCommit={setTodoistToken} placeholder="Paste your API Token here" className="flex-1 bg-white px-5 py-3 rounded-2xl border-2 border-transparent focus:border-[#ff6b6b] outline-none font-mono text-sm text-[#594a42] shadow-sm"/>
                                             <Button onClick={fetchTodoistTasks} disabled={!todoistToken} variant="primary" className={`px-6 ${isSyncing ? 'opacity-70' : ''}`}>{isSyncing ? 'Syncing...' : 'Sync'}</Button>
                                         </div>
                                         <p className="mt-3 text-xs font-bold text-[#8e8070] px-2">Find this in Todoist Settings {'>'} Integrations {'>'} API Token</p>

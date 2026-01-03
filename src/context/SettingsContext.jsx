@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useMemo } from 'react';
 
 const SettingsContext = createContext();
 
@@ -26,7 +26,8 @@ export const SettingsProvider = ({ children }) => {
   useEffect(() => { localStorage.setItem('nook_breathing_duration', breathingDuration.toString()); }, [breathingDuration]);
   useEffect(() => { localStorage.setItem('nook_allowed_domains', JSON.stringify(allowedDomains)); }, [allowedDomains]);
 
-  const value = {
+  // MEMOIZATION FIX: Prevents the entire app from re-rendering on every minor state change
+  const value = useMemo(() => ({
     durations, setDurations,
     autoStartBreaks, setAutoStartBreaks,
     longBreakInterval, setLongBreakInterval,
@@ -37,7 +38,11 @@ export const SettingsProvider = ({ children }) => {
     flowDuration, setFlowDuration,
     intermissionDuration, setIntermissionDuration,
     allowedDomains, setAllowedDomains
-  };
+  }), [
+    durations, autoStartBreaks, longBreakInterval, isDeepFocus, 
+    dailyGoal, breathingDuration, showPercentage, flowDuration, 
+    intermissionDuration, allowedDomains
+  ]);
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 };
