@@ -69,11 +69,12 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
   };
 
   const progress = calculateProgress();
-  const radius = 110; 
+  // Reduced radius slightly to save vertical space
+  const radius = 115; 
   const circumference = 2 * Math.PI * radius;
 
   return (
-    <div className="w-full flex-1 flex flex-col items-center justify-between py-6 relative">
+    <div className="w-full flex-1 h-full flex flex-col items-center justify-between relative">
       
       {/* --- INTENTION OVERLAY (Encloses this Timer Block) --- */}
       <AnimatePresence>
@@ -125,7 +126,7 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
       {/* --- STANDARD DISPLAY --- */}
       
       {/* 1. Mode Switcher (Top) */}
-      <div className="h-10 relative z-20">
+      <div className="h-14 flex items-center relative z-20">
         <AnimatePresence>
             {!isActive && !showFlowExtend && (
                 <motion.div 
@@ -138,7 +139,7 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
                         <button 
                             key={m} 
                             onClick={() => setMode(m)} 
-                            className={`px-5 py-2 rounded-full text-xs font-black transition-all capitalize tracking-wide ${mode === m ? 'bg-white text-[#594a42] shadow-sm transform scale-105 border border-black/5' : 'text-[#8e8070] hover:bg-white/50'}`}
+                            className={`px-6 py-3 rounded-full text-xs font-black transition-all capitalize tracking-wide ${mode === m ? 'bg-white text-[#594a42] shadow-sm transform scale-105 border border-black/5' : 'text-[#8e8070] hover:bg-white/50'}`}
                         >
                             {m}
                         </button>
@@ -149,7 +150,8 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
       </div>
       
       {/* 2. Timer Circle (Center) */}
-      <div className="flex-1 flex flex-col items-center justify-center relative z-10 w-full my-4">
+      {/* Reduced SVG size (w-64/72) and increased margin-bottom (mb-14) to separate pill from buttons */}
+      <div className="flex-1 flex flex-col items-center justify-center relative z-10 w-full mb-14 mt-2">
           <div className="relative">
             {/* Outer glow ring */}
             <div className="absolute inset-0 bg-white/40 blur-3xl rounded-full transform scale-110"></div>
@@ -186,8 +188,8 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
             </div>
           </div>
           
-          {/* Active Task Pill */}
-          <div className="absolute -bottom-6 w-full flex justify-center h-12">
+          {/* Active Task Pill - Positioned higher (-bottom-5) to avoid overlapping the buttons below */}
+          <div className="absolute -bottom-5 w-full flex justify-center h-7 z-30">
             <AnimatePresence mode='wait'>
                 {isActive && mode === 'focus' && intention && (
                     <motion.div 
@@ -208,7 +210,7 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
       </div>
 
       {/* 3. Bottom Controls (Start/Pause + Widgets) */}
-      <div className="w-full flex flex-col items-center gap-6 z-20">
+      <div className="w-full flex flex-col items-center gap-3 z-20">
          {/* Main Buttons */}
          <div className="h-16 flex items-center justify-center">
             <AnimatePresence mode='wait'>
@@ -238,7 +240,7 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
             </AnimatePresence>
          </div>
 
-         {/* Widgets (Soundscapes & Todoist) - Restored */}
+         {/* Widgets (Soundscapes & Todoist) */}
          <AnimatePresence>
             {!isMinimalist && !isActive && (
                 <motion.div 

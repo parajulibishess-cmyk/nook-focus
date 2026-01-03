@@ -79,7 +79,7 @@ const TaskSection = memo(({ transparent }) => {
   };
 
   return (
-    <Card transparent={transparent} delay={0.2} className="flex-1 flex flex-col h-full min-h-[400px] overflow-visible relative z-20">
+    <Card transparent={transparent} delay={0.2} className="flex-1 flex flex-col h-full min-h-[400px] overflow-visible relative z-20 border-4 border-white/60">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-black flex items-center gap-3 text-[#594a42]"><span className="bg-[#fdcb58] w-3 h-8 rounded-full shadow-sm"></span>Today's Tasks</h2>
         <span className="text-xs font-bold bg-[#f1f2f6] px-3 py-1.5 rounded-full text-[#8e8070] border border-[#e6e2d0]">{tasks.filter(t => t.completed).length} / {tasks.length}</span>
@@ -134,7 +134,8 @@ const TaskSection = memo(({ transparent }) => {
                     const isFocused = focusedTaskId === task.id;
                     const isOverdue = !task.completed && checkOverdue(task.dueDate);
                     
-                    let opacityClass = transparent ? (isFocused ? 'opacity-100 bg-white scale-[1.02] shadow-xl border-[#78b159] z-10' : 'opacity-30 blur-[1px] grayscale scale-95 border-transparent') : (task.completed ? 'opacity-60 bg-[#f1f2f6] border-transparent' : 'bg-white opacity-100 border-[#f1f2f6] hover:border-[#78b159] hover:shadow-md');
+                    // Modified opacityClass to keep borders visible when transparent (running)
+                    let opacityClass = transparent ? (isFocused ? 'opacity-100 bg-white scale-[1.02] shadow-xl border-[#78b159] z-10' : 'opacity-40 blur-[0.5px] grayscale scale-95 border-white/20') : (task.completed ? 'opacity-60 bg-[#f1f2f6] border-transparent' : 'bg-white opacity-100 border-[#f1f2f6] hover:border-[#78b159] hover:shadow-md');
                     
                     if (isOverdue && !transparent && !task.completed) {
                         opacityClass = 'bg-[#ff6b6b]/5 border-[#ff6b6b]/30 hover:border-[#ff6b6b]';
