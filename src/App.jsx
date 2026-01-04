@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, memo } from 'react';
+﻿import React, { useState, useRef, memo, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SettingsProvider } from './context/SettingsContext';
 import { MediaProvider, useMedia } from './context/MediaContext';
@@ -11,12 +11,21 @@ import { BarChart2, BookOpen, Minimize, Maximize, Leaf, Settings } from 'lucide-
 
 import TimerDisplay from './components/Timer/TimerDisplay';
 import TaskSection from './components/Tasks/TaskSection';
-import SettingsModal from './components/Settings/SettingsModal';
-import AnalyticsModal from './components/Stats/AnalyticsModal';
-import MusicModal from './components/Audio/MusicModal';
-import JournalModal from './components/Journal/JournalModal';
 import Button from './components/UI/Button';
 import Card from './components/UI/Card';
+
+// CODE SPLITTING: Lazy load these heavy modals so they don't block initial page load.
+const SettingsModal = React.lazy(() => import('./components/Settings/SettingsModal'));
+const AnalyticsModal = React.lazy(() => import('./components/Stats/AnalyticsModal'));
+const MusicModal = React.lazy(() => import('./components/Audio/MusicModal'));
+const JournalModal = React.lazy(() => import('./components/Journal/JournalModal'));
+
+// Loading Spinner for Lazy Loaded components
+const ModalLoader = () => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/10 backdrop-blur-[1px]">
+        <div className="w-12 h-12 border-4 border-[#78b159] border-t-transparent rounded-full animate-spin"></div>
+    </div>
+);
 
 // OPTIMIZATION: Extracted Background to a memoized component.
 // This prevents the heavy iframe/image from being diffed/re-rendered every second the timer ticks.
@@ -119,13 +128,15 @@ const MainLayout = () => {
                 )}
             </div>
 
-            {/* Modals */}
-            <AnimatePresence>
-                {activeModal === 'settings' && <SettingsModal onClose={() => setActiveModal(null)} />}
-                {activeModal === 'analytics' && <AnalyticsModal onClose={() => setActiveModal(null)} />}
-                {activeModal === 'music' && <MusicModal onClose={() => setActiveModal(null)} />}
-                {activeModal === 'journal' && <JournalModal onClose={() => setActiveModal(null)} />}
-            </AnimatePresence>
+            {/* Modals with Code Splitting */}
+            <Suspense fallback={<ModalLoader />}>
+                <AnimatePresence>
+                    {activeModal === 'settings' && <SettingsModal onClose={() => setActiveModal(null)} />}
+                    {activeModal === 'analytics' && <AnalyticsModal onClose={() => setActiveModal(null)} />}
+                    {activeModal === 'music' && <MusicModal onClose={() => setActiveModal(null)} />}
+                    {activeModal === 'journal' && <JournalModal onClose={() => setActiveModal(null)} />}
+                </AnimatePresence>
+            </Suspense>
         </div>
     );
 };
