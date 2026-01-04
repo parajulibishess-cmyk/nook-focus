@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { History, X } from 'lucide-react';
 import Button from '../UI/Button';
 
-// --- STYLES & ASSETS (User Provided Art) ---
+// --- STYLES & ASSETS (Original Visuals Restored) ---
 
 const Styles = () => (
   <style>{`
@@ -169,7 +169,8 @@ const GardenDisplay = () => {
     let streak = 0;
     const harvested = [];
     
-    const GROWTH_THRESHOLD = 60; // 60 minutes needed to grow
+    // KEEPING STREAK LOGIC: 60 minutes needed to grow
+    const GROWTH_THRESHOLD = 60; 
     const CYCLE_LENGTH = 4; // Seed (0) -> Sprout (1) -> Sapling (2) -> Tree (3)
 
     // Helper: Check if dates are roughly consecutive (allow small gaps if needed, but strict for now)
@@ -178,7 +179,7 @@ const GardenDisplay = () => {
         const curr = new Date(currDateStr);
         const diffTime = Math.abs(curr - prev);
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-        return diffDays <= 2; // Allow 1 missed day to keep streak alive? Or strictly 1. Let's say <= 2 for forgiveness.
+        return diffDays <= 2; // Allow 1 missed day to keep streak alive
     };
 
     for (let i = 0; i < historyEntries.length; i++) {
@@ -202,16 +203,9 @@ const GardenDisplay = () => {
                 harvested.push({ date: date, id: harvested.length });
             }
         }
-        // If minutes < 60, we just ignore this day (don't break streak, just don't grow)
-        // OR reset streak? "Grow everyday AS LONG AS you have met..." implies streak breaks.
-        // For now, let's just count qualifying days.
     }
 
     // Current Stage is modulo of current running streak
-    // If streak is 0, stage is 0 (Seed)
-    // If streak is 1, stage is 1 (Sprout)
-    // If streak is 2, stage is 2 (Sapling)
-    // If streak is 3, stage is 3 (Tree - Ready to Harvest next tick)
     const stage = streak % CYCLE_LENGTH;
 
     return { 
@@ -286,15 +280,14 @@ const GardenDisplay = () => {
       </AnimatePresence>
 
       {/* --- HEADER --- */}
-      <div className="w-full p-6 flex justify-between items-start z-10 relative">
+      {/* Kept p-4 (Layout Fix) */}
+      <div className="w-full p-4 flex justify-between items-start z-10 relative">
          <div>
             <h2 className="text-3xl font-black text-[#594a42] tracking-tight">Focus Garden</h2>
             <div className="flex items-center gap-2 mt-1">
                 <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${currentStage === 3 ? 'bg-[#fdcb58] text-[#594a42]' : 'bg-[#e6e2d0] text-[#8e8070]'}`}>
                    Day {(currentStreakCount % 4) + 1} of 4 Cycle
                 </span>
-                {/* Debug Info to ensure file updated */}
-                {/* <span className="text-[10px] text-gray-300">v3.0</span> */}
             </div>
          </div>
          <Button onClick={() => setShowHistory(true)} variant="neutral" icon={History} className="bg-white shadow-sm border border-[#e6e2d0] text-[#8e8070]">
@@ -303,7 +296,8 @@ const GardenDisplay = () => {
       </div>
 
       {/* --- CENTER PLANT --- */}
-      <div className="flex-1 flex flex-col items-center justify-center w-full relative -mt-10">
+      {/* Kept -mt-24 (Layout Fix) */}
+      <div className="flex-1 flex flex-col items-center justify-center w-full relative -mt-24">
           {/* Background Aura */}
           <div className="absolute w-96 h-96 bg-[#fdcb58] rounded-full filter blur-[80px] opacity-20 animate-pulse-slow"></div>
           
@@ -317,7 +311,8 @@ const GardenDisplay = () => {
              {renderPlant()}
           </motion.div>
 
-          <div className="mt-8 text-center z-10">
+          {/* Kept mt-4 (Layout Fix) */}
+          <div className="mt-4 text-center z-10">
               <h3 className="text-2xl font-black text-[#594a42] drop-shadow-sm">{getStageName()}</h3>
               <p className="text-[#8e8070] font-bold text-sm max-w-[200px] mx-auto leading-tight mt-1">
                   {currentStage === 3 
