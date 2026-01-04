@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, Zap, Coffee, ArrowRight, Music, CheckSquare } from 'lucide-react';
+import { Play, Pause, Zap, Coffee, Music, CheckSquare } from 'lucide-react';
 import Button from '../UI/Button';
 import SafeLink from '../UI/SafeLink';
 import { useTimerContext } from '../../context/TimerContext';
@@ -9,7 +10,7 @@ import { useTasks } from '../../context/TaskContext';
 
 const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
   const { timer, showFlowExtend, finishSession, extendSession } = useTimerContext();
-  const { durations, showPercentage } = useSettings();
+  const { durations, showPercentage, autoStartBreaks, breathingDuration } = useSettings();
   const { tasks, focusedTaskId, setFocusedTaskId } = useTasks();
   
   const { timeLeft, isActive, mode, calculateProgress, startTimer, pauseTimer, setMode } = timer;
@@ -17,6 +18,7 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
   // Intention State
   const [intention, setIntention] = useState("");
   const [showIntentionPrompt, setShowIntentionPrompt] = useState(false);
+  const [isBreathing, setIsBreathing] = useState(false);
   const inputRef = useRef(null);
 
   // Sync intention with selected task if available
@@ -34,6 +36,55 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
     }
   }, [showIntentionPrompt]);
 
+  // Flow Extend Timeout (15 seconds) -> Trigger Breathing
+  useEffect(() => {
+    let timeout;
+    if (showFlowExtend) {
+        timeout = setTimeout(() => {
+            setIsBreathing(true);
+        }, 15000);
+    }
+    return () => clearTimeout(timeout);
+  }, [showFlowExtend]);
+
+  // Breathing Timer Logic (Duration)
+  useEffect(() => {
+      let timeout;
+      if (isBreathing) {
+          // Fallback to 10s if breathingDuration is undefined
+          const duration = breathingDuration || 10; 
+          timeout = setTimeout(() => {
+              setIsBreathing(false);
+              finishSession(); // Proceed to actual break
+          }, duration * 1000);
+      }
+      return () => clearTimeout(timeout);
+  }, [isBreathing, breathingDuration, finishSession]);
+
+  // Haptics & Rhythm Loop
+  useEffect(() => {
+    let interval;
+    if (isBreathing) {
+        const triggerHaptic = () => {
+            // Inhale Cue (Start of cycle)
+            if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+            
+            // Exhale Cue (Halfway through 4s cycle)
+            setTimeout(() => {
+                 if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                     navigator.vibrate(20);
+                 }
+            }, 2000);
+        };
+        
+        triggerHaptic(); // Trigger immediately
+        interval = setInterval(triggerHaptic, 4000); // Loop every 4s to match animation
+    }
+    return () => clearInterval(interval);
+  }, [isBreathing]);
+
   const handleStartClick = () => {
       // If prompt is needed (Focus mode + not active + not resuming)
       if (mode === 'focus' && !isActive && timeLeft === durations.focus * 60) {
@@ -48,6 +99,10 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
       if (!intention.trim()) return;
       setShowIntentionPrompt(false);
       startTimer();
+  };
+
+  const handleTakeBreak = () => {
+      setIsBreathing(true);
   };
 
   const colors = {
@@ -76,9 +131,49 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
   return (
     <div className="w-full flex-1 h-full flex flex-col items-center justify-between relative">
       
-      {/* --- INTENTION OVERLAY (Encloses this Timer Block) --- */}
+      {/* --- BREATHING OVERLAY (FULL SCREEN PORTAL) --- */}
+      {createPortal(
+        <AnimatePresence>
+            {isBreathing && (
+                <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#78b159] text-white overflow-hidden touch-none"
+                >
+                    <div className="relative flex items-center justify-center">
+                        {/* Pulse Ring */}
+                        <motion.div
+                            animate={{ scale: [1, 1.5, 1], opacity: [0.3, 0.6, 0.3] }}
+                            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                            className="w-64 h-64 bg-white rounded-full absolute"
+                        />
+                        {/* Center Circle */}
+                        <motion.div
+                            animate={{ scale: [1, 1.2, 1] }}
+                            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                            className="w-40 h-40 bg-white rounded-full shadow-lg relative z-10 flex items-center justify-center"
+                        >
+                            <span className="text-[#78b159] font-black text-xl tracking-widest uppercase">Breathe</span>
+                        </motion.div>
+                    </div>
+                    <motion.h2 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                        className="mt-12 text-3xl font-black tracking-tight relative z-10 drop-shadow-sm"
+                    >
+                        Inhale... Exhale
+                    </motion.h2>
+                </motion.div>
+            )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* --- INTENTION OVERLAY --- */}
       <AnimatePresence>
-        {showIntentionPrompt && (
+        {showIntentionPrompt && !isBreathing && (
             <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -128,7 +223,7 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
       {/* 1. Mode Switcher (Top) */}
       <div className="h-14 flex items-center relative z-20">
         <AnimatePresence>
-            {!isActive && !showFlowExtend && (
+            {!isActive && !showFlowExtend && !autoStartBreaks && (
                 <motion.div 
                     initial={{ opacity: 0, y: -20 }} 
                     animate={{ opacity: 1, y: 0 }} 
@@ -150,7 +245,6 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
       </div>
       
       {/* 2. Timer Circle (Center) */}
-      {/* Reduced SVG size (w-64/72) and increased margin-bottom (mb-14) to separate pill from buttons */}
       <div className="flex-1 flex flex-col items-center justify-center relative z-10 w-full mb-14 mt-2">
           <div className="relative">
             {/* Outer glow ring */}
@@ -188,7 +282,7 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
             </div>
           </div>
           
-          {/* Active Task Pill - Positioned higher (-bottom-5) to avoid overlapping the buttons below */}
+          {/* Active Task Pill */}
           <div className="absolute -bottom-5 w-full flex justify-center h-7 z-30">
             <AnimatePresence mode='wait'>
                 {isActive && mode === 'focus' && intention && (
@@ -209,7 +303,7 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
           </div>
       </div>
 
-      {/* 3. Bottom Controls (Start/Pause + Widgets) */}
+      {/* 3. Bottom Controls */}
       <div className="w-full flex flex-col items-center gap-3 z-20">
          {/* Main Buttons */}
          <div className="h-16 flex items-center justify-center">
@@ -220,7 +314,7 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
                         className="flex gap-4"
                     >
                         <Button onClick={extendSession} variant="primary" icon={Zap} className="shadow-xl ring-4 ring-[#78b159]/20 text-lg py-3 px-8">Extend 15m</Button>
-                        <Button onClick={finishSession} variant="secondary" icon={Coffee} className="text-lg py-3 px-8">Take Break</Button>
+                        <Button onClick={handleTakeBreak} variant="secondary" icon={Coffee} className="text-lg py-3 px-8">Take Break</Button>
                     </motion.div>
                 ) : (
                     <motion.div 
@@ -240,7 +334,7 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
             </AnimatePresence>
          </div>
 
-         {/* Widgets (Soundscapes & Todoist) */}
+         {/* Widgets */}
          <AnimatePresence>
             {!isMinimalist && !isActive && (
                 <motion.div 
