@@ -1,4 +1,4 @@
-import React, { useState, memo } from 'react'; // Added memo
+import React, { useState, memo } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { useTasks } from '../../context/TaskContext';
 import { useStats } from '../../context/StatsContext';
@@ -6,7 +6,6 @@ import { Plus, CheckSquare, Flag, CalendarDays, Target, Trash2, Layers, Briefcas
 import Card from '../UI/Card';
 import Calendar from '../UI/Calendar';
 
-// WRAPPED IN MEMO to prevent re-renders on every timer tick
 const TaskSection = memo(({ transparent }) => {
   const { tasks, setTasks, focusedTaskId, setFocusedTaskId, todoistToken } = useTasks();
   const { setStats } = useStats(); 
@@ -49,12 +48,17 @@ const TaskSection = memo(({ transparent }) => {
     setTasks(prev => prev.map(t => {
         if (t.id === id) {
             const newStatus = !t.completed;
+            const now = Date.now();
+            
             if (newStatus) setStats(s => ({ ...s, tasksCompleted: s.tasksCompleted + 1 }));
             if (focusedTaskId === id && newStatus) setFocusedTaskId(null);
+            
             if (todoistToken) {
                 fetch(`https://api.todoist.com/rest/v2/tasks/${id}/${newStatus ? 'close' : 'reopen'}`, { method: 'POST', headers: { 'Authorization': `Bearer ${todoistToken}` } }).catch(console.error);
             }
-            return { ...t, completed: newStatus };
+            
+            // Record completedAt for statistics
+            return { ...t, completed: newStatus, completedAt: newStatus ? now : null };
         }
         return t;
     }));
@@ -134,7 +138,6 @@ const TaskSection = memo(({ transparent }) => {
                     const isFocused = focusedTaskId === task.id;
                     const isOverdue = !task.completed && checkOverdue(task.dueDate);
                     
-                    // Modified opacityClass to keep borders visible when transparent (running)
                     let opacityClass = transparent ? (isFocused ? 'opacity-100 bg-white scale-[1.02] shadow-xl border-[#78b159] z-10' : 'opacity-40 blur-[0.5px] grayscale scale-95 border-white/20') : (task.completed ? 'opacity-60 bg-[#f1f2f6] border-transparent' : 'bg-white opacity-100 border-[#f1f2f6] hover:border-[#78b159] hover:shadow-md');
                     
                     if (isOverdue && !transparent && !task.completed) {

@@ -16,21 +16,28 @@ export const useTimerContext = () => {
 
 export const TimerProvider = ({ children }) => {
   const settings = useSettings();
-  const { setStats, setSeeds } = useStats();
+  const { stats, setStats, setSeeds } = useStats();
   const { tasks, setTasks, focusedTaskId } = useTasks();
   
   const [showFlowExtend, setShowFlowExtend] = useState(false);
-  // NEW: Track if the current running timer is an extension
   const [isExtension, setIsExtension] = useState(false);
 
   const handleTimerComplete = (mode, isFocusSession) => {
+    // 1. UPDATE SESSION COUNTS (Focus, Short, Long)
+    setStats(prev => ({
+        ...prev,
+        sessionCounts: {
+            ...prev.sessionCounts,
+            [mode]: (prev.sessionCounts?.[mode] || 0) + 1
+        }
+    }));
+
     if (isFocusSession) {
       setShowFlowExtend(true);
       
-      // Determine what to add based on whether this was an extension or a full session
       const durationToAdd = isExtension ? settings.flowDuration : settings.durations.focus;
-      const sessionIncrement = isExtension ? 0 : 1; // Don't count extension as a new "Session"
-      const seedIncrement = isExtension ? 0 : 1;    // Don't award a seed for extension
+      const sessionIncrement = isExtension ? 0 : 1;
+      const seedIncrement = isExtension ? 0 : 1;
       
       if (seedIncrement > 0) {
           setSeeds(prev => prev + seedIncrement);
@@ -42,8 +49,9 @@ export const TimerProvider = ({ children }) => {
       
       setStats(prev => {
         const newHistory = { ...prev.dailyHistory }; 
-        // Use the calculated duration (e.g. 15m) instead of the full focus duration (e.g. 25m)
-        newHistory[today] = (newHistory[today] || 0) + durationToAdd; 
+        const oldTodayTotal = newHistory[today] || 0;
+        const newTodayTotal = oldTodayTotal + durationToAdd;
+        newHistory[today] = newTodayTotal; 
         
         const newHourly = [...prev.hourlyActivity]; 
         newHourly[hour] += durationToAdd;
@@ -52,29 +60,50 @@ export const TimerProvider = ({ children }) => {
         if (prev.lastActiveDate !== today) { 
             const y = new Date(now); 
             y.setDate(y.getDate() - 1); 
-            if (prev.lastActiveDate === y.toISOString().split('T')[0]) newStreak += 1; 
+            const yesterday = y.toISOString().split('T')[0];
+            if (prev.lastActiveDate === yesterday) newStreak += 1; 
             else if (prev.lastActiveDate !== today) newStreak = 1; 
         }
+
+        // 2. UPDATE BEST STREAK
+        const newBestStreak = Math.max(prev.bestStreak || 0, newStreak);
         
-        const activeTaskCategory = tasks.find(t => t.id === focusedTaskId)?.category || "General";
+        // 3. UPDATE PERFECT DAYS
+        const goal = settings.dailyGoal;
+        const metGoalBefore = oldTodayTotal >= goal;
+        const metGoalNow = newTodayTotal >= goal;
+        const perfectDaysIncrement = (!metGoalBefore && metGoalNow) ? 1 : 0;
+
+        // 4. CATEGORY & PRIORITY STATS
+        const activeTask = tasks.find(t => t.id === focusedTaskId);
+        const activeCategory = activeTask?.category || "General";
+        const activePriority = activeTask?.priority || 1;
+
         const newCategoryDist = { ...prev.categoryDist }; 
-        newCategoryDist[activeTaskCategory] = (newCategoryDist[activeTaskCategory] || 0) + durationToAdd;
-        
+        newCategoryDist[activeCategory] = (newCategoryDist[activeCategory] || 0) + durationToAdd;
+
+        const newPriorityDist = { ...prev.priorityDist };
+        if (activeTask) {
+             newPriorityDist[activePriority] = (newPriorityDist[activePriority] || 0) + durationToAdd;
+        }
+
         const totalMins = prev.minutes + durationToAdd;
         
         return { 
           ...prev, 
-          sessions: prev.sessions + sessionIncrement, // Only increment count if it's a full session
+          sessions: prev.sessions + sessionIncrement, 
           minutes: totalMins, 
           dailyHistory: newHistory, 
           hourlyActivity: newHourly, 
           categoryDist: newCategoryDist, 
-          streak: newStreak, 
-          lastActiveDate: today 
+          priorityDist: newPriorityDist,
+          streak: newStreak,
+          lastActiveDate: today,
+          bestStreak: newBestStreak,
+          perfectDays: (prev.perfectDays || 0) + perfectDaysIncrement
         };
       });
 
-      // Only increment Task Pomodoro count if it was a full session
       if (focusedTaskId && sessionIncrement > 0) {
         setTasks(prev => prev.map(t => 
           t.id === focusedTaskId 
@@ -91,28 +120,20 @@ export const TimerProvider = ({ children }) => {
 
   const finishSession = () => {
     setShowFlowExtend(false);
-    setIsExtension(false); // Reset extension state for the next session
+    setIsExtension(false);
     timer.finishIntermission('break'); 
   };
 
   const extendSession = () => {
     setShowFlowExtend(false);
-    setIsExtension(true); // Mark the upcoming timer as an extension
+    setIsExtension(true);
     timer.finishIntermission('extend');
     setStats(prev => ({ ...prev, flowExtensions: (prev.flowExtensions || 0) + 1 }));
   };
 
   const value = useMemo(() => ({
-    timer, 
-    showFlowExtend, 
-    setShowFlowExtend, 
-    finishSession, 
-    extendSession 
+    timer, showFlowExtend, setShowFlowExtend, finishSession, extendSession 
   }), [timer, showFlowExtend]);
 
-  return (
-    <TimerContext.Provider value={value}>
-      {children}
-    </TimerContext.Provider>
-  );
+  return <TimerContext.Provider value={value}>{children}</TimerContext.Provider>;
 };
