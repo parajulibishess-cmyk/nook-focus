@@ -6,6 +6,9 @@ const timerAudio = typeof Audio !== "undefined" ? new Audio("https://assets.mixk
 export const useTimer = (settings, onTimerComplete) => {
   const [mode, setMode] = useState('focus'); // focus, short, long
   const [timeLeft, setTimeLeft] = useState(settings.durations.focus * 60);
+  // NEW: Track the initial duration of the *current* active timer for accurate percentage
+  const [initialDuration, setInitialDuration] = useState(settings.durations.focus * 60);
+  
   const [isActive, setIsActive] = useState(false);
   const [endTime, setEndTime] = useState(null);
   const [isIntermission, setIsIntermission] = useState(false);
@@ -16,7 +19,9 @@ export const useTimer = (settings, onTimerComplete) => {
   // Update time when settings change, but only if not active
   useEffect(() => {
     if (!isActive && !isIntermission) {
-      setTimeLeft(settings.durations[mode] * 60);
+      const t = settings.durations[mode] * 60;
+      setTimeLeft(t);
+      setInitialDuration(t); // Sync initial duration
     }
   }, [settings.durations, mode, isActive, isIntermission]);
 
@@ -65,6 +70,7 @@ export const useTimer = (settings, onTimerComplete) => {
     if (action === 'extend') {
       const extra = settings.flowDuration * 60;
       setTimeLeft(extra);
+      setInitialDuration(extra); // Set total to extension duration
       setEndTime(Date.now() + extra * 1000);
       setIsActive(true);
     } else if (action === 'break') {
@@ -72,6 +78,7 @@ export const useTimer = (settings, onTimerComplete) => {
       setMode(next);
       const dur = settings.durations[next] * 60;
       setTimeLeft(dur);
+      setInitialDuration(dur); // Set total to break duration
       if (settings.autoStartBreaks) {
         setEndTime(Date.now() + dur * 1000);
         setIsActive(true);
@@ -80,8 +87,10 @@ export const useTimer = (settings, onTimerComplete) => {
   }, [settings]);
 
   const calculateProgress = useCallback(() => {
-    return ((settings.durations[mode] * 60 - timeLeft) / (settings.durations[mode] * 60)) * 100;
-  }, [settings.durations, mode, timeLeft]);
+    // Use initialDuration to ensure 100% is always the full specific session
+    if (initialDuration === 0) return 0;
+    return ((initialDuration - timeLeft) / initialDuration) * 100;
+  }, [initialDuration, timeLeft]);
 
   // WRAPPED IN MEMO to ensure referential stability when values haven't changed
   return useMemo(() => ({ 
@@ -90,9 +99,10 @@ export const useTimer = (settings, onTimerComplete) => {
     timeLeft, 
     isActive, 
     isIntermission, 
+    initialDuration, // Expose this
     startTimer, 
     pauseTimer, 
     finishIntermission, 
     calculateProgress
-  }), [mode, timeLeft, isActive, isIntermission, startTimer, pauseTimer, finishIntermission, calculateProgress]);
+  }), [mode, timeLeft, isActive, isIntermission, initialDuration, startTimer, pauseTimer, finishIntermission, calculateProgress]);
 };

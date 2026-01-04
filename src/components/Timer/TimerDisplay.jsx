@@ -13,12 +13,14 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
   const { durations, showPercentage, autoStartBreaks, breathingDuration } = useSettings();
   const { tasks, focusedTaskId, setFocusedTaskId } = useTasks();
   
-  const { timeLeft, isActive, mode, calculateProgress, startTimer, pauseTimer, setMode } = timer;
+  // Destructure initialDuration from timer
+  const { timeLeft, isActive, mode, calculateProgress, startTimer, pauseTimer, setMode, initialDuration } = timer;
   
   // Intention State
   const [intention, setIntention] = useState("");
   const [showIntentionPrompt, setShowIntentionPrompt] = useState(false);
   const [isBreathing, setIsBreathing] = useState(false);
+  const [showPercentageToggle, setShowPercentageToggle] = useState(false);
   const inputRef = useRef(null);
 
   // Sync intention with selected task if available
@@ -36,6 +38,21 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
     }
   }, [showIntentionPrompt]);
 
+  // Alternating Percentage Logic
+  useEffect(() => {
+    let interval;
+    if (isActive && showPercentage) {
+        // Switch between Time and Percentage every 8 seconds
+        interval = setInterval(() => {
+            setShowPercentageToggle(prev => !prev);
+        }, 8000); 
+    } else {
+        // Reset to showing time when paused or if setting is off
+        setShowPercentageToggle(false);
+    }
+    return () => clearInterval(interval);
+  }, [isActive, showPercentage]);
+
   // Flow Extend Timeout (15 seconds) -> Trigger Breathing
   useEffect(() => {
     let timeout;
@@ -51,11 +68,10 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
   useEffect(() => {
       let timeout;
       if (isBreathing) {
-          // Fallback to 10s if breathingDuration is undefined
           const duration = breathingDuration || 10; 
           timeout = setTimeout(() => {
               setIsBreathing(false);
-              finishSession(); // Proceed to actual break
+              finishSession(); 
           }, duration * 1000);
       }
       return () => clearTimeout(timeout);
@@ -66,27 +82,22 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
     let interval;
     if (isBreathing) {
         const triggerHaptic = () => {
-            // Inhale Cue (Start of cycle)
             if (typeof navigator !== 'undefined' && navigator.vibrate) {
                 navigator.vibrate(50);
             }
-            
-            // Exhale Cue (Halfway through 4s cycle)
             setTimeout(() => {
                  if (typeof navigator !== 'undefined' && navigator.vibrate) {
                      navigator.vibrate(20);
                  }
             }, 2000);
         };
-        
-        triggerHaptic(); // Trigger immediately
-        interval = setInterval(triggerHaptic, 4000); // Loop every 4s to match animation
+        triggerHaptic(); 
+        interval = setInterval(triggerHaptic, 4000); 
     }
     return () => clearInterval(interval);
   }, [isBreathing]);
 
   const handleStartClick = () => {
-      // If prompt is needed (Focus mode + not active + not resuming)
       if (mode === 'focus' && !isActive && timeLeft === durations.focus * 60) {
           setShowIntentionPrompt(true);
       } else {
@@ -113,8 +124,12 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
   const currentColor = colors[mode];
 
   const formatTime = (seconds) => {
-    if (showPercentage && isActive) {
-        const total = durations[mode] * 60;
+    if (showPercentage && isActive && showPercentageToggle) {
+        // FIX: Use initialDuration to calculate based on correct total (handles Extensions correctly)
+        const total = initialDuration || (durations[mode] * 60);
+        
+        if (total <= 0) return "0%"; // Safety
+
         const pct = Math.round(((total - seconds) / total) * 100);
         return `${pct}%`;
     }
@@ -124,14 +139,13 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
   };
 
   const progress = calculateProgress();
-  // Reduced radius slightly to save vertical space
   const radius = 115; 
   const circumference = 2 * Math.PI * radius;
 
   return (
     <div className="w-full flex-1 h-full flex flex-col items-center justify-between relative">
       
-      {/* --- BREATHING OVERLAY (FULL SCREEN PORTAL) --- */}
+      {/* --- BREATHING OVERLAY --- */}
       {createPortal(
         <AnimatePresence>
             {isBreathing && (
@@ -142,13 +156,11 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
                     className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#78b159] text-white overflow-hidden touch-none"
                 >
                     <div className="relative flex items-center justify-center">
-                        {/* Pulse Ring */}
                         <motion.div
                             animate={{ scale: [1, 1.5, 1], opacity: [0.3, 0.6, 0.3] }}
                             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                             className="w-64 h-64 bg-white rounded-full absolute"
                         />
-                        {/* Center Circle */}
                         <motion.div
                             animate={{ scale: [1, 1.2, 1] }}
                             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
@@ -305,7 +317,6 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
 
       {/* 3. Bottom Controls */}
       <div className="w-full flex flex-col items-center gap-3 z-20">
-         {/* Main Buttons */}
          <div className="h-16 flex items-center justify-center">
             <AnimatePresence mode='wait'>
                 {showFlowExtend ? (
