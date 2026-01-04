@@ -25,7 +25,15 @@ export const StatsProvider = ({ children }) => {
       perfectDays: 0,
       sessionCounts: { focus: 0, short: 0, long: 0 },
       installDate: new Date().toISOString(),
-      priorityDist: { 4: 0, 3: 0, 2: 0, 1: 0 }
+      priorityDist: { 4: 0, 3: 0, 2: 0, 1: 0 },
+
+      // --- NEW METRICS (Behavioral & Temporal) ---
+      totalPauses: 0,
+      abandonedSessions: 0,
+      // Track interruptions by session completion quartile (0-25%, etc.)
+      pauseDist: { "0-25": 0, "25-50": 0, "50-75": 0, "75-100": 0 },
+      // 7 days x 24 hours grid for heatmap
+      weeklyHourly: Array.from({ length: 7 }, () => new Array(24).fill(0))
     };
 
     if (stored) {
@@ -33,7 +41,10 @@ export const StatsProvider = ({ children }) => {
         ...defaults,
         ...stored,
         sessionCounts: { ...defaults.sessionCounts, ...(stored.sessionCounts || {}) },
-        priorityDist: { ...defaults.priorityDist, ...(stored.priorityDist || {}) }
+        priorityDist: { ...defaults.priorityDist, ...(stored.priorityDist || {}) },
+        pauseDist: { ...defaults.pauseDist, ...(stored.pauseDist || {}) },
+        // Ensure weeklyHourly is a 2D array if merging from old state
+        weeklyHourly: stored.weeklyHourly || defaults.weeklyHourly
       };
     }
     

@@ -23,7 +23,7 @@ export const TimerProvider = ({ children }) => {
   const [isExtension, setIsExtension] = useState(false);
 
   const handleTimerComplete = (mode, isFocusSession) => {
-    // 1. UPDATE SESSION COUNTS (Focus, Short, Long)
+    // 1. UPDATE SESSION COUNTS
     setStats(prev => ({
         ...prev,
         sessionCounts: {
@@ -46,6 +46,7 @@ export const TimerProvider = ({ children }) => {
       const now = new Date();
       const today = now.toISOString().split('T')[0];
       const hour = now.getHours();
+      const dayOfWeek = now.getDay(); // 0 = Sunday
       
       setStats(prev => {
         const newHistory = { ...prev.dailyHistory }; 
@@ -53,8 +54,14 @@ export const TimerProvider = ({ children }) => {
         const newTodayTotal = oldTodayTotal + durationToAdd;
         newHistory[today] = newTodayTotal; 
         
+        // Update Hourly (Aggregate)
         const newHourly = [...prev.hourlyActivity]; 
         newHourly[hour] += durationToAdd;
+
+        // Update Weekly Heatmap (Day x Hour)
+        // Ensure structure exists (safety check)
+        const newWeeklyHourly = prev.weeklyHourly ? prev.weeklyHourly.map(row => [...row]) : Array.from({length:7}, () => new Array(24).fill(0));
+        newWeeklyHourly[dayOfWeek][hour] += durationToAdd;
         
         let newStreak = prev.streak;
         if (prev.lastActiveDate !== today) { 
@@ -65,16 +72,13 @@ export const TimerProvider = ({ children }) => {
             else if (prev.lastActiveDate !== today) newStreak = 1; 
         }
 
-        // 2. UPDATE BEST STREAK
         const newBestStreak = Math.max(prev.bestStreak || 0, newStreak);
         
-        // 3. UPDATE PERFECT DAYS
         const goal = settings.dailyGoal;
         const metGoalBefore = oldTodayTotal >= goal;
         const metGoalNow = newTodayTotal >= goal;
         const perfectDaysIncrement = (!metGoalBefore && metGoalNow) ? 1 : 0;
 
-        // 4. CATEGORY & PRIORITY STATS
         const activeTask = tasks.find(t => t.id === focusedTaskId);
         const activeCategory = activeTask?.category || "General";
         const activePriority = activeTask?.priority || 1;
@@ -94,7 +98,8 @@ export const TimerProvider = ({ children }) => {
           sessions: prev.sessions + sessionIncrement, 
           minutes: totalMins, 
           dailyHistory: newHistory, 
-          hourlyActivity: newHourly, 
+          hourlyActivity: newHourly,
+          weeklyHourly: newWeeklyHourly, // Save new heatmap
           categoryDist: newCategoryDist, 
           priorityDist: newPriorityDist,
           streak: newStreak,
@@ -118,6 +123,46 @@ export const TimerProvider = ({ children }) => {
 
   const timer = useTimer(settings, handleTimerComplete);
 
+  // --- NEW BEHAVIORAL WRAPPERS ---
+
+  // 1. Pause Wrapper: Tracks "Interruption Pattern" and "Flow Depth"
+  const pauseSession = () => {
+    timer.pauseTimer();
+    // Only track pauses during active focus sessions
+    if (timer.mode === 'focus' && timer.isActive) {
+        const progress = timer.calculateProgress();
+        
+        setStats(prev => {
+            let bucket = "0-25";
+            if (progress > 75) bucket = "75-100";
+            else if (progress > 50) bucket = "50-75";
+            else if (progress > 25) bucket = "25-50";
+
+            return {
+                ...prev,
+                totalPauses: (prev.totalPauses || 0) + 1,
+                pauseDist: {
+                    ...(prev.pauseDist || { "0-25": 0, "25-50": 0, "50-75": 0, "75-100": 0 }),
+                    [bucket]: ((prev.pauseDist?.[bucket] || 0) + 1)
+                }
+            };
+        });
+    }
+  };
+
+  // 2. Cancel Wrapper: Tracks "Abandonment Rate"
+  const cancelSession = () => {
+    timer.pauseTimer();
+    timer.setMode(timer.mode); // Resets timer to initial state
+    
+    if (timer.mode === 'focus') {
+        setStats(prev => ({
+            ...prev,
+            abandonedSessions: (prev.abandonedSessions || 0) + 1
+        }));
+    }
+  };
+
   const finishSession = () => {
     setShowFlowExtend(false);
     setIsExtension(false);
@@ -132,7 +177,13 @@ export const TimerProvider = ({ children }) => {
   };
 
   const value = useMemo(() => ({
-    timer, showFlowExtend, setShowFlowExtend, finishSession, extendSession 
+    timer, 
+    showFlowExtend, 
+    setShowFlowExtend, 
+    finishSession, 
+    extendSession,
+    pauseSession,  // Export new wrapper
+    cancelSession  // Export new wrapper
   }), [timer, showFlowExtend]);
 
   return <TimerContext.Provider value={value}>{children}</TimerContext.Provider>;

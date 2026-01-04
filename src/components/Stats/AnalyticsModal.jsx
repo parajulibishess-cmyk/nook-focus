@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useStats } from '../../context/StatsContext';
 import { useSettings } from '../../context/SettingsContext';
 import { useTasks } from '../../context/TaskContext';
-import { X, BarChart2, Sprout, Zap, ThermometerSun, Layout, Flower2, Clock, Trophy, Target, PieChart, CheckCircle2, AlertTriangle, Award } from 'lucide-react';
+// ADDED 'Zap' back to this list
+import { X, BarChart2, Sprout, TrendingUp, Zap, ThermometerSun, Layout, Flower2, Clock, Trophy, Target, PieChart, CheckCircle2, AlertTriangle, Award, Moon, Calendar } from 'lucide-react';
 import GardenDisplay from '../Garden/GardenDisplay';
 
 const AnalyticsModal = ({ onClose }) => {
@@ -24,6 +25,7 @@ const AnalyticsModal = ({ onClose }) => {
       return total === 0 ? 0 : Math.round(((stats.flowExtensions || 0) / total) * 100);
   };
 
+  // Expanded Golden Hour Logic
   const getGoldenHour = () => {
       if (!stats.hourlyActivity || stats.hourlyActivity.every(h => h === 0)) return null;
       const maxVal = Math.max(...stats.hourlyActivity);
@@ -97,9 +99,58 @@ const AnalyticsModal = ({ onClose }) => {
       return champ;
   };
 
+  // --- NEW CALCULATIONS ---
+
+  // Behavioral: Flow Depth (Avg pauses per session)
+  const getFlowDepth = () => {
+      const totalSessions = stats.sessionCounts?.focus || 1;
+      return ((stats.totalPauses || 0) / totalSessions).toFixed(1);
+  };
+
+  // Behavioral: Abandonment Rate
+  const getAbandonmentRate = () => {
+      const total = (stats.sessionCounts?.focus || 0) + (stats.abandonedSessions || 0);
+      if (total === 0) return 0;
+      return Math.round(((stats.abandonedSessions || 0) / total) * 100);
+  };
+
+  // Temporal: Weekday vs Weekend Split
+  const getWeekSplit = () => {
+      let wd = 0, we = 0;
+      Object.entries(stats.dailyHistory || {}).forEach(([date, mins]) => {
+          const d = new Date(date).getDay();
+          if (d === 0 || d === 6) we += mins;
+          else wd += mins;
+      });
+      const total = wd + we;
+      if (total === 0) return { wd: 0, we: 0 };
+      return { wd: Math.round((wd/total)*100), we: Math.round((we/total)*100) };
+  };
+
+  // Temporal: Late Night Owl (Sessions after 10PM)
+  const getNightOwlScore = () => {
+      if (!stats.hourlyActivity) return 0;
+      const lateHours = stats.hourlyActivity[22] + stats.hourlyActivity[23] + stats.hourlyActivity[0] + stats.hourlyActivity[1];
+      const total = stats.hourlyActivity.reduce((a,b) => a+b, 0);
+      if (total === 0) return 0;
+      return Math.round((lateHours / total) * 100);
+  };
+
+  // Temporal: Monthly Velocity (Last 6 months)
+  const getMonthlyVelocity = () => {
+      const months = {};
+      Object.entries(stats.dailyHistory || {}).forEach(([date, mins]) => {
+          const m = date.substring(0, 7); // YYYY-MM
+          months[m] = (months[m] || 0) + Math.round(mins / 60); // Hours
+      });
+      // Get last 6 months keys
+      return Object.entries(months).sort().slice(-6);
+  };
+
   const estAcc = getEstimationAccuracy();
   const completionRate = tasks.length > 0 ? Math.round((tasks.filter(t => t.completed).length / tasks.length) * 100) : 0;
   const distMax = Math.max(...Object.values(stats.categoryDist || { "General": 0 }), 1);
+  const weekSplit = getWeekSplit();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-pop-in">
@@ -125,6 +176,10 @@ const AnalyticsModal = ({ onClose }) => {
                     <button onClick={() => setTab('tasks')} className={`p-4 rounded-2xl font-bold text-left flex items-center gap-3 transition-colors ${tab === 'tasks' ? 'bg-[#54a0ff] text-white' : 'text-[#8e8070] hover:bg-[#f1f2f6]'}`}>
                         <CheckCircle2 size={20}/> Task Insights
                     </button>
+                    {/* NEW TAB BUTTON */}
+                    <button onClick={() => setTab('trends')} className={`p-4 rounded-2xl font-bold text-left flex items-center gap-3 transition-colors ${tab === 'trends' ? 'bg-[#ff6b6b] text-white' : 'text-[#8e8070] hover:bg-[#f1f2f6]'}`}>
+                        <TrendingUp size={20}/> Deep Trends
+                    </button>
                     <button onClick={() => setTab('garden')} className={`p-4 rounded-2xl font-bold text-left flex items-center gap-3 transition-colors ${tab === 'garden' ? 'bg-[#fdcb58] text-[#7d5a00]' : 'text-[#8e8070] hover:bg-[#f1f2f6]'}`}>
                         <Sprout size={20}/> Garden
                     </button>
@@ -141,7 +196,7 @@ const AnalyticsModal = ({ onClose }) => {
                 {/* Content Area */}
                 <div className="flex-1 p-8 overflow-y-auto custom-scrollbar relative bg-[#fcfcf7]">
                     
-                    {/* --- TAB: OVERVIEW (COMBINED) --- */}
+                    {/* --- TAB: OVERVIEW --- */}
                     {tab === 'dashboard' && (
                         <div className="space-y-6 animate-slide-up">
                             
@@ -237,7 +292,7 @@ const AnalyticsModal = ({ onClose }) => {
                         </div>
                     )}
 
-                    {/* --- TAB: TASK INSIGHTS (NEW) --- */}
+                    {/* --- TAB: TASKS --- */}
                     {tab === 'tasks' && (
                         <div className="space-y-6 animate-slide-up">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -283,6 +338,122 @@ const AnalyticsModal = ({ onClose }) => {
                         </div>
                     )}
 
+                    {/* --- NEW TAB: DEEP TRENDS --- */}
+                    {tab === 'trends' && (
+                        <div className="space-y-6 animate-slide-up">
+                            
+                            {/* 1. Behavioral Stats Row */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="bg-white rounded-3xl p-6 border-2 border-[#f1f2f6] shadow-sm relative overflow-hidden">
+                                    <h3 className="font-bold text-[#594a42] text-sm">Flow Depth</h3>
+                                    <div className="text-3xl font-black text-[#54a0ff] my-2">{getFlowDepth()}</div>
+                                    <div className="text-xs font-bold text-[#a4b0be]">Avg pauses / session</div>
+                                    <div className="mt-2 text-[10px] text-[#8e8070] bg-[#f1f2f6] p-2 rounded-xl">
+                                        {getFlowDepth() < 1 ? "Deep Focus Master!" : "Try to minimize interruptions."}
+                                    </div>
+                                </div>
+                                <div className="bg-white rounded-3xl p-6 border-2 border-[#f1f2f6] shadow-sm relative overflow-hidden">
+                                    <h3 className="font-bold text-[#594a42] text-sm">Abandonment Rate</h3>
+                                    <div className="text-3xl font-black text-[#ff6b6b] my-2">{getAbandonmentRate()}%</div>
+                                    <div className="text-xs font-bold text-[#a4b0be]">Sessions stopped early</div>
+                                </div>
+                                <div className="bg-white rounded-3xl p-6 border-2 border-[#f1f2f6] shadow-sm relative overflow-hidden">
+                                    <h3 className="font-bold text-[#594a42] text-sm">Night Owl Score</h3>
+                                    <div className="text-3xl font-black text-[#6c5ce7] my-2">{getNightOwlScore()}%</div>
+                                    <div className="text-xs font-bold text-[#a4b0be]">Activity after 10 PM</div>
+                                </div>
+                            </div>
+
+                            {/* 2. Interruption Pattern & Week Split */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Interruption Pattern */}
+                                <div className="bg-white rounded-3xl p-6 border-2 border-[#f1f2f6] shadow-sm">
+                                    <h3 className="font-bold text-[#594a42] mb-4 flex items-center gap-2">
+                                        <AlertTriangle size={18} className="text-[#fdcb58]"/> Interruption Pattern
+                                    </h3>
+                                    <div className="flex items-end gap-2 h-32">
+                                        {Object.entries(stats.pauseDist || { "0-25": 0 }).map(([key, val]) => {
+                                            const max = Math.max(...Object.values(stats.pauseDist || {a:1}), 1);
+                                            return (
+                                                <div key={key} className="flex-1 flex flex-col items-center justify-end h-full">
+                                                    <div className="w-full bg-[#fdcb58] rounded-t-lg transition-all" style={{ height: `${(val/max)*100}%`, minHeight: '4px' }}></div>
+                                                    <span className="text-[10px] font-bold text-[#a4b0be] mt-2">{key}%</span>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                    <p className="text-xs text-[#a4b0be] text-center mt-2 font-bold">When you usually pause during a session.</p>
+                                </div>
+
+                                {/* Weekday vs Weekend */}
+                                <div className="bg-white rounded-3xl p-6 border-2 border-[#f1f2f6] shadow-sm">
+                                    <h3 className="font-bold text-[#594a42] mb-4 flex items-center gap-2">
+                                        <Calendar size={18} className="text-[#54a0ff]"/> Work Week Balance
+                                    </h3>
+                                    <div className="flex h-12 rounded-full overflow-hidden mb-4">
+                                        <div className="bg-[#54a0ff] h-full flex items-center justify-center text-white font-bold text-xs" style={{ width: `${weekSplit.wd}%` }}>
+                                            {weekSplit.wd > 10 && `Weekdays ${weekSplit.wd}%`}
+                                        </div>
+                                        <div className="bg-[#ff9f43] h-full flex items-center justify-center text-white font-bold text-xs" style={{ width: `${weekSplit.we}%` }}>
+                                            {weekSplit.we > 10 && `Weekend ${weekSplit.we}%`}
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-[#a4b0be] font-bold text-center">
+                                        {weekSplit.we > 30 ? "You're a weekend warrior!" : "You keep your weekends mostly free."}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* 3. Weekly Heatmap (7x24) */}
+                            <div className="bg-white rounded-3xl p-6 border-2 border-[#f1f2f6] shadow-sm">
+                                <h3 className="font-bold text-[#594a42] mb-4">Weekly Focus Heatmap</h3>
+                                <div className="grid grid-cols-[auto_1fr] gap-2">
+                                    <div className="flex flex-col justify-between text-[10px] font-bold text-[#a4b0be] py-1">
+                                        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => <div key={d} className="h-4 leading-4">{d}</div>)}
+                                    </div>
+                                    <div className="grid grid-rows-7 gap-1">
+                                        {stats.weeklyHourly && stats.weeklyHourly.map((row, i) => (
+                                            <div key={i} className="grid grid-cols-24 gap-[2px] h-4">
+                                                {row.map((mins, h) => {
+                                                    const intensity = Math.min(mins / 30, 1); // Cap at 30 mins for max color
+                                                    return (
+                                                        <div key={h} 
+                                                            title={`${mins}m`}
+                                                            className="rounded-sm"
+                                                            style={{ 
+                                                                backgroundColor: `rgba(120, 177, 89, ${intensity})`,
+                                                                opacity: intensity === 0 ? 0.1 : 1
+                                                            }}
+                                                        />
+                                                    );
+                                                })}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="flex justify-between text-[10px] font-bold text-[#a4b0be] ml-8 mt-1">
+                                    <span>12 AM</span><span>6 AM</span><span>12 PM</span><span>6 PM</span><span>11 PM</span>
+                                </div>
+                            </div>
+
+                            {/* 4. Monthly Velocity */}
+                            <div className="bg-white rounded-3xl p-6 border-2 border-[#f1f2f6] shadow-sm">
+                                <h3 className="font-bold text-[#594a42] mb-4">Monthly Velocity (Hours)</h3>
+                                <div className="flex items-end gap-4 h-32">
+                                    {getMonthlyVelocity().map(([month, hours]) => (
+                                        <div key={month} className="flex-1 flex flex-col items-center justify-end h-full group">
+                                            <div className="text-xs font-bold text-[#594a42] mb-1 opacity-0 group-hover:opacity-100 transition-opacity">{hours}h</div>
+                                            <div className="w-full bg-[#594a42] rounded-t-lg opacity-80 group-hover:opacity-100 transition-all" style={{ height: `${Math.min(hours*2, 100)}%`, minHeight: '4px' }}></div>
+                                            <span className="text-[10px] font-bold text-[#a4b0be] mt-2 whitespace-nowrap">{month}</span>
+                                        </div>
+                                    ))}
+                                    {getMonthlyVelocity().length === 0 && <div className="text-[#a4b0be] text-sm w-full text-center">No monthly data yet.</div>}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* --- TAB: GARDEN --- */}
                     {tab === 'garden' && (
                         <div className="h-full w-full rounded-3xl overflow-hidden animate-pop-in">
                             <GardenDisplay />
