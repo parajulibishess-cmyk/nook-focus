@@ -105,6 +105,19 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
       }
   };
 
+  // FIX: Custom Pause Handler
+  const handlePauseClick = () => {
+    // If we are in a break (not focus) and auto-start is enabled, 
+    // pausing should "quit" the break and reset to focus.
+    if (autoStartBreaks && mode !== 'focus') {
+        pauseTimer();
+        setMode('focus');
+    } else {
+        // Otherwise, just pause normally
+        pauseTimer();
+    }
+  };
+
   const confirmIntention = (e) => {
       e?.preventDefault();
       if (!intention.trim()) return;
@@ -235,6 +248,7 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
       {/* 1. Mode Switcher (Top) */}
       <div className="h-14 flex items-center relative z-20">
         <AnimatePresence>
+            {/* FIX: Included !autoStartBreaks again, so buttons disappear if auto-start is on */}
             {!isActive && !showFlowExtend && !autoStartBreaks && (
                 <motion.div 
                     initial={{ opacity: 0, y: -20 }} 
@@ -332,8 +346,9 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
                         key={isActive ? 'pause' : 'start'}
                         initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
                     >
+                        {/* FIX: Use handlePauseClick instead of pauseTimer directly */}
                         <Button 
-                            onClick={isActive ? pauseTimer : handleStartClick} 
+                            onClick={isActive ? handlePauseClick : handleStartClick} 
                             variant={isActive ? "secondary" : "primary"} 
                             icon={isActive ? Pause : Play} 
                             className="min-w-[160px] text-xl py-4 shadow-xl"
