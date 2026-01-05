@@ -65,9 +65,14 @@ const TaskSection = memo(({ transparent }) => {
   };
 
   const discardTask = async (id) => {
+      // Remove from local state only
       setTasks(prev => prev.filter(t => t.id !== id));
+      
+      // If it was focused, unfocus it
       if (focusedTaskId === id) setFocusedTaskId(null);
-      if (todoistToken) { fetch(`https://api.todoist.com/rest/v2/tasks/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${todoistToken}` } }).catch(console.error); }
+      
+      // PREVIOUS CODE REMOVED:
+      // if (todoistToken) { fetch(`https://api.todoist.com/rest/v2/tasks/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${todoistToken}` } }).catch(console.error); }
   };
   
   const getPriorityColor = (p) => { if (p === 4) return "text-[#ff6b6b]"; if (p === 3) return "text-[#fdcb58]"; if (p === 2) return "text-[#54a0ff]"; return "text-[#a4b0be]"; };
