@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
 import { useTimer } from '../hooks/useTimer';
 import { useSettings } from './SettingsContext';
 import { useStats } from './StatsContext';
@@ -21,6 +21,9 @@ export const TimerProvider = ({ children }) => {
   
   const [showFlowExtend, setShowFlowExtend] = useState(false);
   const [isExtension, setIsExtension] = useState(false);
+  
+  // NEW: State to trigger auto-start
+  const [triggerAutoStart, setTriggerAutoStart] = useState(false);
 
   const handleTimerComplete = (mode, isFocusSession) => {
     // 1. UPDATE SESSION COUNTS
@@ -118,10 +121,24 @@ export const TimerProvider = ({ children }) => {
       }
     } else { 
         setStats(prev => ({ ...prev, breaksCompleted: (prev.breaksCompleted || 0) + 1 })); 
+
+        // NEW LOGIC: Auto-start Focus after Short Break
+        // If settings allow, and we just finished a 'short' break, trigger focus start.
+        if (settings.autoStartBreaks && mode === 'short') {
+            setTriggerAutoStart(true);
+        }
     }
   };
 
   const timer = useTimer(settings, handleTimerComplete);
+
+  // NEW: Effect to reliably start the timer when triggered
+  useEffect(() => {
+    if (triggerAutoStart) {
+        timer.startSession('focus');
+        setTriggerAutoStart(false);
+    }
+  }, [triggerAutoStart, timer]);
 
   // --- NEW BEHAVIORAL WRAPPERS ---
 

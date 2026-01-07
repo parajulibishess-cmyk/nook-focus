@@ -44,6 +44,22 @@ export const TaskProvider = ({ children }) => {
     } catch(e){ console.error(e); } finally { setIsSyncing(false); }
   };
 
+  // NEW: Poll Todoist every 60 seconds (1 minute) to keep tasks in sync
+  useEffect(() => {
+    let interval;
+    if (todoistToken) {
+        // Initial fetch to ensure data is fresh on load/token set
+        fetchTodoistTasks();
+        
+        interval = setInterval(() => {
+            fetchTodoistTasks();
+        }, 60000);
+    }
+    return () => {
+        if (interval) clearInterval(interval);
+    };
+  }, [todoistToken]);
+
   const value = useMemo(() => ({
     tasks, setTasks, 
     focusedTaskId, setFocusedTaskId, 

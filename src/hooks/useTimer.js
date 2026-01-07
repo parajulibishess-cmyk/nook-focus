@@ -60,6 +60,18 @@ export const useTimer = (settings, onTimerComplete) => {
       setEndTime(null); 
   }, []);
 
+  // NEW: Atomic function to switch mode and start timer immediately
+  // This avoids stale state issues when trying to auto-start via effects
+  const startSession = useCallback((newMode) => {
+      setMode(newMode);
+      const dur = settings.durations[newMode] * 60;
+      setTimeLeft(dur);
+      setInitialDuration(dur);
+      setEndTime(Date.now() + dur * 1000);
+      setIsActive(true);
+      setIsIntermission(false);
+  }, [settings]);
+
   const handleCompletion = () => {
     if(timerAudio) timerAudio.play().catch(e => console.error(e));
     if (onTimerComplete) onTimerComplete(mode, mode === 'focus');
@@ -101,8 +113,9 @@ export const useTimer = (settings, onTimerComplete) => {
     isIntermission, 
     initialDuration, // Expose this
     startTimer, 
-    pauseTimer, 
+    pauseTimer,
+    startSession, // Export new function
     finishIntermission, 
     calculateProgress
-  }), [mode, timeLeft, isActive, isIntermission, initialDuration, startTimer, pauseTimer, finishIntermission, calculateProgress]);
+  }), [mode, timeLeft, isActive, isIntermission, initialDuration, startTimer, pauseTimer, startSession, finishIntermission, calculateProgress]);
 };
