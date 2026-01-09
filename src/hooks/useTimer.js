@@ -77,7 +77,7 @@ export const useTimer = (settings, onTimerComplete) => {
     if (onTimerComplete) onTimerComplete(mode, mode === 'focus');
   };
 
-  const finishIntermission = useCallback((action) => {
+  const finishIntermission = useCallback((action, nextMode = 'short') => {
     setIsIntermission(false);
     if (action === 'extend') {
       const extra = settings.flowDuration * 60;
@@ -86,7 +86,7 @@ export const useTimer = (settings, onTimerComplete) => {
       setEndTime(Date.now() + extra * 1000);
       setIsActive(true);
     } else if (action === 'break') {
-      const next = 'short'; 
+      const next = nextMode; 
       setMode(next);
       const dur = settings.durations[next] * 60;
       setTimeLeft(dur);

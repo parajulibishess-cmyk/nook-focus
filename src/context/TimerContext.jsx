@@ -183,7 +183,13 @@ export const TimerProvider = ({ children }) => {
   const finishSession = () => {
     setShowFlowExtend(false);
     setIsExtension(false);
-    timer.finishIntermission('break'); 
+    
+    // LOGIC FIX: Determine if it's time for a long break
+    // We check if the total completed sessions matches the interval
+    const isLongBreak = stats.sessions > 0 && (stats.sessions % settings.longBreakInterval === 0);
+    const nextMode = isLongBreak ? 'long' : 'short';
+    
+    timer.finishIntermission('break', nextMode); 
   };
 
   const extendSession = () => {
