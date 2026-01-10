@@ -1,8 +1,7 @@
-﻿const { app, BrowserWindow, shell } = require('electron');
+﻿const { app, BrowserWindow, shell, ipcMain } = require('electron');
 const path = require('path');
 
-// Check if the app is running in development or production
-const isDev = !app.isPackaged;
+const isDev = process.argv.includes('--dev');
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -10,18 +9,22 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    frame: false, // Frameless window for your custom UI
-    backgroundColor: '#fcfcf7', // Matches app background
+    frame: false,
+    backgroundColor: '#fcfcf7',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,
-      devTools: isDev // Enable DevTools only in dev mode
+      preload: path.join(__dirname, 'preload.js'),
+      devTools: isDev
     },
     autoHideMenuBar: true
   });
 
-  // Handle external links to open in the default browser
+  // NEW: Emit events when window state changes
+  win.on('maximize', () => win.webContents.send('window-maximized'));
+  win.on('unmaximize', () => win.webContents.send('window-unmaximized'));
+
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https:') || url.startsWith('http:')) {
       shell.openExternal(url);
@@ -30,20 +33,23 @@ function createWindow() {
   });
 
   if (isDev) {
-    // DEVELOPMENT: Load the Vite local server
     win.loadURL('http://localhost:5173');
     win.webContents.openDevTools();
-    console.log('Electron running in dev mode: loading http://localhost:5173');
   } else {
-    // PRODUCTION: Load the built file
     const indexPath = path.join(__dirname, '../dist/index.html');
     win.loadFile(indexPath);
   }
+
+  ipcMain.on('minimize-window', () => win.minimize());
+  ipcMain.on('maximize-window', () => {
+    if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
+  });
+  ipcMain.on('close-window', () => win.close());
 }
 
 app.whenReady().then(createWindow);
 
-// Quit the app immediately when all windows are closed
 app.on('window-all-closed', () => {
   app.quit();
 });

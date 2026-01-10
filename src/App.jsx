@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, memo, Suspense } from 'react';
+﻿import React, { useState, useRef, memo, Suspense, useEffect } from 'react'; // Added useEffect
 import { AnimatePresence, motion } from 'framer-motion';
 import { SettingsProvider } from './context/SettingsContext';
 import { MediaProvider, useMedia } from './context/MediaContext';
@@ -7,28 +7,24 @@ import { StatsProvider } from './context/StatsContext';
 import { JournalProvider } from './context/JournalContext';
 import { TimerProvider, useTimerContext } from './context/TimerContext';
 
-import { BarChart2, BookOpen, Minimize, Maximize, Leaf, Settings } from 'lucide-react';
+import { BarChart2, BookOpen, Minimize, Maximize, Leaf, Settings, Minus, Square, X } from 'lucide-react';
 
 import TimerDisplay from './components/Timer/TimerDisplay';
 import TaskSection from './components/Tasks/TaskSection';
 import Button from './components/UI/Button';
 import Card from './components/UI/Card';
 
-// CODE SPLITTING: Lazy load these heavy modals so they don't block initial page load.
 const SettingsModal = React.lazy(() => import('./components/Settings/SettingsModal'));
 const AnalyticsModal = React.lazy(() => import('./components/Stats/AnalyticsModal'));
 const MusicModal = React.lazy(() => import('./components/Audio/MusicModal'));
 const JournalModal = React.lazy(() => import('./components/Journal/JournalModal'));
 
-// Loading Spinner for Lazy Loaded components
 const ModalLoader = () => (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/10 backdrop-blur-[1px]">
         <div className="w-12 h-12 border-4 border-[#78b159] border-t-transparent rounded-full animate-spin"></div>
     </div>
 );
 
-// OPTIMIZATION: Extracted Background to a memoized component.
-// This prevents the heavy iframe/image from being diffed/re-rendered every second the timer ticks.
 const BackgroundLayers = memo(({ bgUrl, bgOpacity }) => {
     const getYouTubeId = (url) => { 
         if (!url) return null; 
@@ -52,7 +48,6 @@ const BackgroundLayers = memo(({ bgUrl, bgOpacity }) => {
     );
 });
 
-// OPTIMIZATION: Extracted Header to memoized component.
 const TopBar = memo(({ onOpenSettings, onOpenStats }) => (
     <div className="lg:col-span-12 flex justify-between items-center mb-2 h-[10%] min-h-[70px]">
         <motion.div 
@@ -77,12 +72,73 @@ const TopBar = memo(({ onOpenSettings, onOpenStats }) => (
     </div>
 ));
 
+// UPDATED: Window Controls accepts props to handle visibility and alignment
+const WindowControls = ({ isMaximized, isAltPressed }) => {
+    // 1. If Maximized AND Alt is NOT pressed: Hide completely
+    if (isMaximized && !isAltPressed) return null;
+
+    // 2. Alignment logic: Center if maximized, Right if normal
+    const alignmentClass = isMaximized ? 'justify-center' : 'justify-end';
+
+    return (
+        <div className={`fixed top-0 left-0 right-0 h-10 flex items-start z-50 p-2 ${alignmentClass}`} style={{ WebkitAppRegion: 'drag' }}>
+            <div className="flex gap-2 p-1 bg-white/50 backdrop-blur-sm rounded-lg border border-white/40 shadow-sm" style={{ WebkitAppRegion: 'no-drag' }}>
+                <button 
+                    onClick={() => window.electronAPI?.minimize()} 
+                    className="p-1 hover:bg-black/5 rounded-md text-[#594a42] transition-colors"
+                    title="Minimize"
+                >
+                    <Minus size={16} strokeWidth={3} />
+                </button>
+                <button 
+                    onClick={() => window.electronAPI?.maximize()} 
+                    className="p-1 hover:bg-black/5 rounded-md text-[#594a42] transition-colors"
+                    title="Maximize"
+                >
+                    <Square size={14} strokeWidth={3} />
+                </button>
+                <button 
+                    onClick={() => window.electronAPI?.close()} 
+                    className="p-1 hover:bg-red-500 hover:text-white rounded-md text-[#594a42] transition-colors"
+                    title="Close"
+                >
+                    <X size={16} strokeWidth={3} />
+                </button>
+            </div>
+        </div>
+    );
+};
+
 const MainLayout = () => {
     const { bgUrl, bgOpacity } = useMedia();
     const { timer } = useTimerContext();
     const [isMinimalist, setIsMinimalist] = useState(false);
     const [activeModal, setActiveModal] = useState(null); 
     const containerRef = useRef(null);
+
+    // NEW STATES: Track Alt key and Maximize state
+    const [isAltPressed, setIsAltPressed] = useState(false);
+    const [isMaximized, setIsMaximized] = useState(false);
+
+    // Effect to handle Alt key and Window State listeners
+    useEffect(() => {
+        const handleKeyDown = (e) => { if (e.key === 'Alt') setIsAltPressed(true); };
+        const handleKeyUp = (e) => { if (e.key === 'Alt') setIsAltPressed(false); };
+
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+
+        // Listen for Electron window state changes
+        if (window.electronAPI) {
+            window.electronAPI.onMaximized(() => setIsMaximized(true));
+            window.electronAPI.onUnmaximized(() => setIsMaximized(false));
+        }
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+        };
+    }, []);
 
     const toggleFullscreen = () => {
         if (!document.fullscreenElement) { 
@@ -97,16 +153,17 @@ const MainLayout = () => {
     return (
         <div ref={containerRef} className="h-screen w-screen relative overflow-hidden bg-[#fcfcf7] text-[#594a42] flex flex-col items-center justify-center select-none" style={{ fontFamily: "'Nunito', sans-serif" }}>
             
+            {/* Pass state to WindowControls */}
+            <WindowControls isMaximized={isMaximized} isAltPressed={isAltPressed} />
+            
             <BackgroundLayers bgUrl={bgUrl} bgOpacity={bgOpacity} />
             
             <div className={`relative z-20 w-full max-w-[1600px] mx-auto p-6 h-full transition-all duration-700 ${isMinimalist ? 'flex items-center justify-center' : 'grid grid-cols-1 lg:grid-cols-12 gap-8'}`}>
                 
                 {!isMinimalist && <TopBar onOpenStats={() => setActiveModal('analytics')} onOpenSettings={() => setActiveModal('settings')} />}
                 
-                {/* Timer Block */}
                 <div className={`flex flex-col gap-6 transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] ${isMinimalist ? 'w-full max-w-xl scale-110' : 'lg:col-span-7 h-full'}`}>
                     <Card transparent={timer.isActive} className="flex-1 flex flex-col items-center justify-center min-h-[500px] relative overflow-hidden group shadow-2xl border-4 border-white/60">
-                        {/* Corner Controls */}
                         <div className="absolute top-8 right-8 flex gap-3 z-30">
                             {!isMinimalist && (<button onClick={() => setActiveModal('journal')} className="p-3.5 bg-white/60 rounded-2xl hover:bg-white text-[#594a42] transition-all hover:scale-110 active:scale-95 shadow-sm border-2 border-white/40" title="Journal"><BookOpen size={22} /></button>)}
                             <button onClick={toggleFullscreen} className="p-3.5 bg-white/60 rounded-2xl hover:bg-white text-[#594a42] transition-all hover:scale-110 active:scale-95 shadow-sm border-2 border-white/40">{isMinimalist ? <Minimize size={22} /> : <Maximize size={22} />}</button>
@@ -119,16 +176,13 @@ const MainLayout = () => {
                     </Card>
                 </div>
 
-                {/* Task Block */}
                 {!isMinimalist && (
                     <div className="lg:col-span-5 flex flex-col gap-4 h-full overflow-hidden">
-                        {/* TaskSection uses internal memoization, but transparent prop depends on timer */}
                         <TaskSection transparent={timer.isActive} />
                     </div>
                 )}
             </div>
 
-            {/* Modals with Code Splitting */}
             <Suspense fallback={<ModalLoader />}>
                 <AnimatePresence>
                     {activeModal === 'settings' && <SettingsModal onClose={() => setActiveModal(null)} />}
