@@ -16,7 +16,8 @@ const AnalyticsModal = ({ onClose }) => {
   // --- HELPER FUNCTIONS ---
   const getTodayMinutes = () => {
       if (!stats.dailyHistory) return 0;
-      const today = new Date().toISOString().split('T')[0];
+      // FIX: Use local time instead of UTC (toISOString) to prevent missing data in Western timezones
+      const today = new Date().toLocaleDateString('en-CA');
       return stats.dailyHistory[today] || 0;
   };
 
@@ -72,9 +73,21 @@ const AnalyticsModal = ({ onClose }) => {
       if (completedTasks.length === 0) return "0h";
       
       let totalDiff = 0;
-      completedTasks.forEach(t => { totalDiff += (t.completedAt - t.id); });
+      let count = 0;
+
+      completedTasks.forEach(t => { 
+          // FIX: Ensure ID is treated as a number (timestamp)
+          const createdTime = typeof t.id === 'number' ? t.id : parseInt(t.id);
+          
+          if (!isNaN(createdTime) && t.completedAt > createdTime) {
+              totalDiff += (t.completedAt - createdTime);
+              count++;
+          }
+      });
       
-      const avgMs = totalDiff / completedTasks.length;
+      if (count === 0) return "0h";
+
+      const avgMs = totalDiff / count;
       const avgHours = Math.round(avgMs / (1000 * 60 * 60));
       if (avgHours > 24) return `${Math.round(avgHours/24)} days`;
       return `${avgHours} hours`;
@@ -297,7 +310,10 @@ const AnalyticsModal = ({ onClose }) => {
                         <div className="space-y-6 animate-slide-up">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="bg-white rounded-3xl p-6 border-2 border-[#f1f2f6] shadow-sm relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 p-4 opacity-10"><Target size={64} className={estAcc.color.replace('text-', '')} /></div>
+                                    {/* FIX: Use 'color' prop instead of className for hex codes */}
+                                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                                        <Target size={64} color={estAcc.color} />
+                                    </div>
                                     <h3 className="font-bold text-[#594a42]">Estimation Accuracy</h3>
                                     <div className="flex items-baseline gap-2 my-2">
                                         <div className="text-4xl font-black" style={{ color: estAcc.color }}>{estAcc.val}%</div>
@@ -338,7 +354,7 @@ const AnalyticsModal = ({ onClose }) => {
                         </div>
                     )}
 
-                    {/* --- NEW TAB: DEEP TRENDS --- */}
+                    {/* --- TAB: DEEP TRENDS --- */}
                     {tab === 'trends' && (
                         <div className="space-y-6 animate-slide-up">
                             

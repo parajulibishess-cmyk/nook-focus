@@ -37,14 +37,19 @@ export const StatsProvider = ({ children }) => {
     };
 
     if (stored) {
+      // FIX: Validate weeklyHourly to ensure it's a 7x24 array before merging
+      // This prevents crashes if old data exists or is corrupted
+      const validWeeklyHourly = (Array.isArray(stored.weeklyHourly) && stored.weeklyHourly.length === 7) 
+          ? stored.weeklyHourly 
+          : defaults.weeklyHourly;
+
       return {
         ...defaults,
         ...stored,
         sessionCounts: { ...defaults.sessionCounts, ...(stored.sessionCounts || {}) },
         priorityDist: { ...defaults.priorityDist, ...(stored.priorityDist || {}) },
         pauseDist: { ...defaults.pauseDist, ...(stored.pauseDist || {}) },
-        // Ensure weeklyHourly is a 2D array if merging from old state
-        weeklyHourly: stored.weeklyHourly || defaults.weeklyHourly
+        weeklyHourly: validWeeklyHourly
       };
     }
     

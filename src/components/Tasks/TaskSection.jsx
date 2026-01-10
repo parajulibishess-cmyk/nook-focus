@@ -1,4 +1,4 @@
-import React, { useState, memo } from 'react';
+import React, { useState, memo, useMemo } from 'react'; // Added useMemo
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { useTasks } from '../../context/TaskContext';
 import { useStats } from '../../context/StatsContext';
@@ -24,6 +24,36 @@ const TaskSection = memo(({ transparent }) => {
     { name: "Creative", icon: PenTool, color: "text-[#ff6b6b]" },
     { name: "Reading", icon: Book, color: "text-[#78b159]" }
   ];
+
+  // Logic to sort tasks based on completion status, due date, and priority
+  const sortedTasks = useMemo(() => {
+    return [...tasks].sort((a, b) => {
+      // 1. Move completed tasks to the bottom of the list
+      if (a.completed !== b.completed) {
+        return a.completed ? 1 : -1;
+      }
+
+      // 2. Sort by due date: Overdue -> Today -> Future -> No Date
+      const dateA = a.dueDate ? new Date(a.dueDate + 'T00:00').getTime() : Infinity;
+      const dateB = b.dueDate ? new Date(b.dueDate + 'T00:00').getTime() : Infinity;
+
+      if (dateA !== dateB) {
+        return dateA - dateB;
+      }
+
+      // 3. Secondary sort by priority (High to Low)
+      if (b.priority !== a.priority) {
+        return b.priority - a.priority;
+      }
+
+      // 4. For completed tasks, show the most recently completed ones first
+      if (a.completed && b.completed) {
+        return (b.completedAt || 0) - (a.completedAt || 0);
+      }
+
+      return 0;
+    });
+  }, [tasks]);
 
   const addTask = async (e) => {
     e.preventDefault();
@@ -57,7 +87,6 @@ const TaskSection = memo(({ transparent }) => {
                 fetch(`https://api.todoist.com/rest/v2/tasks/${id}/${newStatus ? 'close' : 'reopen'}`, { method: 'POST', headers: { 'Authorization': `Bearer ${todoistToken}` } }).catch(console.error);
             }
             
-            // Record completedAt for statistics
             return { ...t, completed: newStatus, completedAt: newStatus ? now : null };
         }
         return t;
@@ -65,14 +94,8 @@ const TaskSection = memo(({ transparent }) => {
   };
 
   const discardTask = async (id) => {
-      // Remove from local state only
       setTasks(prev => prev.filter(t => t.id !== id));
-      
-      // If it was focused, unfocus it
       if (focusedTaskId === id) setFocusedTaskId(null);
-      
-      // PREVIOUS CODE REMOVED:
-      // if (todoistToken) { fetch(`https://api.todoist.com/rest/v2/tasks/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${todoistToken}` } }).catch(console.error); }
   };
   
   const getPriorityColor = (p) => { if (p === 4) return "text-[#ff6b6b]"; if (p === 3) return "text-[#fdcb58]"; if (p === 2) return "text-[#54a0ff]"; return "text-[#a4b0be]"; };
@@ -139,7 +162,8 @@ const TaskSection = memo(({ transparent }) => {
         <LayoutGroup>
             <motion.div className="space-y-3 pb-4">
                 <AnimatePresence initial={false}>
-                {tasks.map(task => {
+                {/* Use sortedTasks instead of tasks */}
+                {sortedTasks.map(task => {
                     const isFocused = focusedTaskId === task.id;
                     const isOverdue = !task.completed && checkOverdue(task.dueDate);
                     
