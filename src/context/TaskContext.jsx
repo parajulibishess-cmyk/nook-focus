@@ -34,7 +34,9 @@ export const TaskProvider = ({ children }) => {
                 completed: t.is_completed, 
                 isSyncing: false,
                 dueDate: t.due ? t.due.date : null, 
-                estimatedPomos: 1
+                estimatedPomos: 1,
+                // FIX: Map created_at so we can calculate stats like Procrastination Index
+                createdAt: t.created_at 
             }));
             setTasks(prev => {
               const existingMap = new Map(prev.map(t => [t.id, t]));

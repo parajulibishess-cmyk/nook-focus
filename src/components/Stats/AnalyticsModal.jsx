@@ -69,17 +69,22 @@ const AnalyticsModal = ({ onClose }) => {
   };
 
   const getProcrastinationIndex = () => {
-      const completedTasks = tasks.filter(t => t.completed && t.completedAt && t.id);
+      const completedTasks = tasks.filter(t => t.completed && t.completedAt);
       if (completedTasks.length === 0) return "0h";
       
       let totalDiff = 0;
       let count = 0;
 
       completedTasks.forEach(t => { 
-          // FIX: Ensure ID is treated as a number (timestamp)
-          const createdTime = typeof t.id === 'number' ? t.id : parseInt(t.id);
+          // FIX: Use createdAt if available, otherwise fallback to ID if it looks like a timestamp
+          let createdTime = null;
+          if (t.createdAt) {
+               createdTime = new Date(t.createdAt).getTime();
+          } else if (typeof t.id === 'number' && t.id > 1577836800000) { // check if ID is roughly after 2020 (valid timestamp)
+               createdTime = t.id;
+          }
           
-          if (!isNaN(createdTime) && t.completedAt > createdTime) {
+          if (createdTime && !isNaN(createdTime) && t.completedAt > createdTime) {
               totalDiff += (t.completedAt - createdTime);
               count++;
           }
