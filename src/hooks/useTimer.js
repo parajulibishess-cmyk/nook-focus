@@ -16,6 +16,16 @@ export const useTimer = (settings, onTimerComplete) => {
   // Ref for the interval to clear it cleanly
   const intervalRef = useRef(null);
 
+  // --- FIX START: Stale Closure Prevention ---
+  // Create a ref to hold the latest version of the callback
+  const onCompleteRef = useRef(onTimerComplete);
+
+  // Update the ref whenever the parent component passes a new function
+  useEffect(() => {
+    onCompleteRef.current = onTimerComplete;
+  }, [onTimerComplete]);
+  // --- FIX END ---
+
   // Update time when settings change, but only if not active
   useEffect(() => {
     if (!isActive && !isIntermission) {
@@ -74,7 +84,13 @@ export const useTimer = (settings, onTimerComplete) => {
 
   const handleCompletion = () => {
     if(timerAudio) timerAudio.play().catch(e => console.error(e));
-    if (onTimerComplete) onTimerComplete(mode, mode === 'focus');
+    
+    // --- FIX START: Use the Ref ---
+    // Call the function stored in the ref instead of the prop directly
+    if (onCompleteRef.current) {
+        onCompleteRef.current(mode, mode === 'focus');
+    }
+    // --- FIX END ---
   };
 
   const finishIntermission = useCallback((action, nextMode = 'short') => {
