@@ -127,6 +127,10 @@ export const TimerProvider = ({ children }) => {
         if (settings.autoStartBreaks && mode === 'short') {
             setTriggerAutoStart(true);
         }
+        // FIX: Reset to Focus mode after Long Break finishes so it exits the break loop
+        else if (mode === 'long') {
+            timer.setMode('focus');
+        }
     }
   };
 
