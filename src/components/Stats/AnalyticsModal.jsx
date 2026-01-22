@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useStats } from '../../context/StatsContext';
 import { useSettings } from '../../context/SettingsContext';
 import { useTasks } from '../../context/TaskContext';
-// ADDED 'Zap' back to this list
 import { X, BarChart2, Sprout, TrendingUp, Zap, ThermometerSun, Layout, Flower2, Clock, Trophy, Target, PieChart, CheckCircle2, AlertTriangle, Award, Moon, Calendar } from 'lucide-react';
 import GardenDisplay from '../Garden/GardenDisplay';
 
@@ -16,14 +15,21 @@ const AnalyticsModal = ({ onClose }) => {
   // --- HELPER FUNCTIONS ---
   const getTodayMinutes = () => {
       if (!stats.dailyHistory) return 0;
-      // FIX: Use local time instead of UTC (toISOString) to prevent missing data in Western timezones
+      // Note: This relies on dailyHistory keys matching local date strings
       const today = new Date().toLocaleDateString('en-CA');
       return stats.dailyHistory[today] || 0;
   };
 
+  // FIX 1: Updated Flow Score to measure Completion vs Abandonment (Consistency)
+  // Old logic measured how often you *extended* sessions, which gave 0% for perfect sessions.
   const getFlowScore = () => {
-      const total = stats.sessions + (stats.flowExtensions || 0);
-      return total === 0 ? 0 : Math.round(((stats.flowExtensions || 0) / total) * 100);
+      const focus = stats.sessionCounts?.focus || 0;
+      const abandoned = stats.abandonedSessions || 0;
+      const total = focus + abandoned;
+      
+      if (total === 0) return 0;
+      // Score is percentage of sessions successfully completed (not abandoned)
+      return Math.round((focus / total) * 100);
   };
 
   // Expanded Golden Hour Logic
@@ -31,6 +37,7 @@ const AnalyticsModal = ({ onClose }) => {
       if (!stats.hourlyActivity || stats.hourlyActivity.every(h => h === 0)) return null;
       const maxVal = Math.max(...stats.hourlyActivity);
       const hour = stats.hourlyActivity.indexOf(maxVal);
+      // Format hour nicely (e.g., 14:00 - 15:00)
       return { time: `${hour}:00 - ${(hour + 1) % 24}:00` };
   };
 
@@ -98,6 +105,7 @@ const AnalyticsModal = ({ onClose }) => {
       return `${avgHours} hours`;
   };
 
+  // FIX 2: Corrected "Category Champion" to count COMPLETED tasks, not RATE.
   const getCategoryChampion = () => {
       const cats = {};
       tasks.forEach(t => {
@@ -107,12 +115,15 @@ const AnalyticsModal = ({ onClose }) => {
       });
       
       let champ = "None";
-      let maxRate = -1;
+      let maxCount = -1; // Changed from maxRate to maxCount
       
       Object.entries(cats).forEach(([name, data]) => {
           if (data.total < 1) return;
-          const rate = data.completed / data.total;
-          if (rate > maxRate) { maxRate = rate; champ = name; }
+          // Compare raw completion count, not percentage
+          if (data.completed > maxCount) { 
+              maxCount = data.completed; 
+              champ = name; 
+          }
       });
       return champ;
   };
@@ -246,9 +257,9 @@ const AnalyticsModal = ({ onClose }) => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="bg-white rounded-3xl p-6 border-2 border-[#f1f2f6] relative overflow-hidden shadow-sm">
                                     <div className="absolute top-0 right-0 p-4 opacity-10"><Zap size={64} className="text-[#fdcb58]" /></div>
-                                    <h3 className="font-bold text-[#594a42]">Flow Score</h3>
+                                    <h3 className="font-bold text-[#594a42]">Focus Consistency</h3>
                                     <div className="text-4xl font-black text-[#fdcb58] my-2">{getFlowScore()}%</div>
-                                    <p className="text-xs text-[#a4b0be] font-bold">Consistency in extending sessions.</p>
+                                    <p className="text-xs text-[#a4b0be] font-bold">Sessions completed without quitting.</p>
                                 </div>
                                 <div className="bg-white rounded-3xl p-6 border-2 border-[#f1f2f6] relative overflow-hidden shadow-sm">
                                     <div className="absolute top-0 right-0 p-4 opacity-10"><ThermometerSun size={64} className="text-[#ff6b6b]" /></div>

@@ -30,7 +30,7 @@ export const TaskProvider = ({ children }) => {
                 id: t.id, 
                 text: t.content, 
                 priority: t.priority, 
-                category: "General", 
+                category: "General", // Default for NEW tasks found on Todoist
                 completed: t.is_completed, 
                 isSyncing: false,
                 dueDate: t.due ? t.due.date : null, 
@@ -38,9 +38,18 @@ export const TaskProvider = ({ children }) => {
                 // FIX: Map created_at so we can calculate stats like Procrastination Index
                 createdAt: t.created_at 
             }));
+            
             setTasks(prev => {
               const existingMap = new Map(prev.map(t => [t.id, t]));
-              return newTasks.map(nt => existingMap.has(nt.id) ? { ...existingMap.get(nt.id), ...nt } : nt);
+              return newTasks.map(nt => {
+                  // FIX: If task exists locally, preserve its category instead of overwriting with "General"
+                  if (existingMap.has(nt.id)) {
+                      const existing = existingMap.get(nt.id);
+                      // Merge the new data (nt) into existing, but explicitly keep the local category
+                      return { ...existing, ...nt, category: existing.category };
+                  }
+                  return nt;
+              });
             });
         }
     } catch(e){ console.error(e); } finally { setIsSyncing(false); }
