@@ -9,7 +9,7 @@ export const TaskProvider = ({ children }) => {
   const [todoistToken, setTodoistToken] = useState(() => localStorage.getItem('nook_todoist_token') || "");
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // OPTIMIZATION: Debounce localStorage writes to prevent blocking on every keystroke/update
+  // OPTIMIZATION: Debounce localStorage writes
   useEffect(() => { 
     const handler = setTimeout(() => {
         localStorage.setItem('nook_tasks', JSON.stringify(tasks));
@@ -26,42 +26,54 @@ export const TaskProvider = ({ children }) => {
         const res = await fetch('https://api.todoist.com/rest/v2/tasks', { headers: { 'Authorization': `Bearer ${todoistToken}` } });
         if (res.ok) {
             const data = await res.json();
-            const newTasks = data.map(t => ({ 
-                id: t.id, 
+            // These are the tasks currently ACTIVE on Todoist
+            const remoteTasks = data.map(t => ({ 
+                id: String(t.id), // FIX: Ensure ID is string for consistent matching
                 text: t.content, 
                 priority: t.priority, 
-                category: "General", // Default for NEW tasks found on Todoist
+                category: "General", 
                 completed: t.is_completed, 
                 isSyncing: false,
                 dueDate: t.due ? t.due.date : null, 
                 estimatedPomos: 1,
-                // FIX: Map created_at so we can calculate stats like Procrastination Index
                 createdAt: t.created_at 
             }));
             
             setTasks(prev => {
-              const existingMap = new Map(prev.map(t => [t.id, t]));
-              return newTasks.map(nt => {
-                  // FIX: If task exists locally, preserve its category instead of overwriting with "General"
-                  if (existingMap.has(nt.id)) {
-                      const existing = existingMap.get(nt.id);
-                      // Merge the new data (nt) into existing, but explicitly keep the local category
-                      return { ...existing, ...nt, category: existing.category };
+              // Create map using String ID to ensure matches work
+              const prevMap = new Map(prev.map(t => [String(t.id), t]));
+              
+              // 1. Merge Remote Tasks with Local Data (Preserving Categories & Estimates)
+              const mergedRemoteTasks = remoteTasks.map(nt => {
+                  if (prevMap.has(nt.id)) {
+                      const existing = prevMap.get(nt.id);
+                      return { 
+                          ...existing, 
+                          ...nt,       
+                          category: existing.category, 
+                          estimatedPomos: existing.estimatedPomos || 1
+                      };
                   }
                   return nt;
               });
+
+              // 2. FIX: Preserve Locally Completed Tasks
+              // Todoist API only returns active tasks. If a task is completed locally,
+              // we MUST keep it in state, otherwise stats will drop to 0%.
+              const remoteIds = new Set(remoteTasks.map(t => t.id));
+              const preservedCompletedTasks = prev.filter(t => t.completed && !remoteIds.has(String(t.id)));
+
+              return [...mergedRemoteTasks, ...preservedCompletedTasks];
             });
         }
     } catch(e){ console.error(e); } finally { setIsSyncing(false); }
   };
 
-  // NEW: Poll Todoist every 60 seconds (1 minute) to keep tasks in sync
+  // Poll Todoist every 60 seconds
   useEffect(() => {
     let interval;
     if (todoistToken) {
-        // Initial fetch to ensure data is fresh on load/token set
         fetchTodoistTasks();
-        
         interval = setInterval(() => {
             fetchTodoistTasks();
         }, 60000);

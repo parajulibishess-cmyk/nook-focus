@@ -51,11 +51,17 @@ const AnalyticsModal = ({ onClose }) => {
   };
 
   const getEstimationAccuracy = () => {
-      const completedWithEstimates = tasks.filter(t => t.completed && t.estimatedPomos > 0);
+      // FIX: Filter for all completed tasks, even if estimate is 0/undefined
+      const completedWithEstimates = tasks.filter(t => t.completed);
+      
       if (completedWithEstimates.length === 0) return { val: 100, text: "No data", color: "#a4b0be" };
       
       let totalEst = 0, totalAct = 0;
-      completedWithEstimates.forEach(t => { totalEst += t.estimatedPomos; totalAct += (t.completedPomos || 0); });
+      completedWithEstimates.forEach(t => { 
+          // FIX: Default to 1 if estimate is missing
+          totalEst += (t.estimatedPomos || 1); 
+          totalAct += (t.completedPomos || 0); 
+      });
       
       if (totalAct === 0 && totalEst > 0) return { val: 0, text: "Needs focus", color: "#ff6b6b" };
       

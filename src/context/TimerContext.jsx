@@ -47,7 +47,8 @@ export const TimerProvider = ({ children }) => {
       }
       
       const now = new Date();
-      const today = now.toISOString().split('T')[0];
+      // FIX: Use local date string instead of UTC to prevent timezone overlaps
+      const today = now.toLocaleDateString('en-CA'); 
       const hour = now.getHours();
       const dayOfWeek = now.getDay(); // 0 = Sunday
       
@@ -70,7 +71,8 @@ export const TimerProvider = ({ children }) => {
         if (prev.lastActiveDate !== today) { 
             const y = new Date(now); 
             y.setDate(y.getDate() - 1); 
-            const yesterday = y.toISOString().split('T')[0];
+            // FIX: Use local date for streak check as well
+            const yesterday = y.toLocaleDateString('en-CA');
             if (prev.lastActiveDate === yesterday) newStreak += 1; 
             else if (prev.lastActiveDate !== today) newStreak = 1; 
         }
