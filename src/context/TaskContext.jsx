@@ -36,6 +36,7 @@ export const TaskProvider = ({ children }) => {
                 isSyncing: false,
                 dueDate: t.due ? t.due.date : null, 
                 estimatedPomos: 1,
+                // FIX: Import the created_at time so Procrastination Index works for Todoist tasks
                 createdAt: t.created_at 
             }));
             
@@ -56,6 +57,9 @@ export const TaskProvider = ({ children }) => {
                           // FIX: CRITICAL - Preserve completedPomos so it doesn't reset to 0
                           completedPomos: existing.completedPomos || 0,
                           
+                          // FIX: Preserve creation time if local has it, otherwise use remote
+                          createdAt: existing.createdAt || nt.createdAt,
+
                           // FIX: If local is completed, KEEP it completed. 
                           // Todoist returns active tasks (completed=false). If we check it off in Nook, 
                           // we don't want the sync to immediately uncheck it before the API update processes.
@@ -70,9 +74,13 @@ export const TaskProvider = ({ children }) => {
               // it won't be in 'remoteTasks' (if synced elsewhere or just now). 
               // We need to keep it so stats count it.
               const remoteIds = new Set(remoteTasks.map(t => t.id));
-              const preservedCompletedTasks = prev.filter(t => t.completed && !remoteIds.has(t.id));
+              // Also preserve tasks that are currently syncing (isSyncing: true) so they don't vanish
+              const preservedTasks = prev.filter(t => 
+                  (t.completed && !remoteIds.has(t.id)) || 
+                  (t.isSyncing && !remoteIds.has(t.id))
+              );
 
-              return [...mergedRemoteTasks, ...preservedCompletedTasks];
+              return [...mergedRemoteTasks, ...preservedTasks];
             });
         }
     } catch(e){ console.error(e); } finally { setIsSyncing(false); }

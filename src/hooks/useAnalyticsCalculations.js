@@ -106,7 +106,12 @@ export const useAnalyticsCalculations = () => {
         if (count === 0) return "0h";
 
         const avgMs = totalDiff / count;
-        const avgHours = Math.round(avgMs / (1000 * 60 * 60));
+        // FIX: Handle durations less than an hour
+        const avgMinutes = Math.round(avgMs / (1000 * 60));
+        
+        if (avgMinutes < 60) return `${avgMinutes}m`;
+        
+        const avgHours = Math.round(avgMinutes / 60);
         if (avgHours > 24) return `${Math.round(avgHours/24)} days`;
         return `${avgHours} hours`;
     };
@@ -138,9 +143,13 @@ export const useAnalyticsCalculations = () => {
     };
 
     const getAbandonmentRate = () => {
-        const total = (stats.sessionCounts?.focus || 0) + (stats.abandonedSessions || 0);
+        // FIX: Ensure values exist before calculating
+        const focus = stats.sessionCounts?.focus || 0;
+        const abandoned = stats.abandonedSessions || 0;
+        const total = focus + abandoned;
+        
         if (total === 0) return 0;
-        return Math.round(((stats.abandonedSessions || 0) / total) * 100);
+        return Math.round((abandoned / total) * 100);
     };
 
     const getWeekSplit = () => {

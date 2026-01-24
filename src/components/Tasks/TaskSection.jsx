@@ -59,7 +59,19 @@ const TaskSection = memo(({ transparent }) => {
     e.preventDefault();
     if (!newTask.trim()) return;
     const tempId = Date.now();
-    const taskObj = { id: tempId, text: newTask, priority: newPriority, dueDate: newDueDate, category: newCategory, estimatedPomos: newEstimate, completedPomos: 0, completed: false, isSyncing: !!todoistToken };
+    // FIX: Added createdAt: Date.now() so stats can calculate delays
+    const taskObj = { 
+        id: tempId, 
+        text: newTask, 
+        priority: newPriority, 
+        dueDate: newDueDate, 
+        category: newCategory, 
+        estimatedPomos: newEstimate, 
+        completedPomos: 0, 
+        completed: false, 
+        isSyncing: !!todoistToken,
+        createdAt: Date.now() 
+    };
     setTasks(prev => [...prev, taskObj]);
     setNewTask(""); setNewPriority(1); setNewDueDate(""); setNewCategory("General"); setNewEstimate(1); setShowCalendar(false);
     
@@ -162,7 +174,6 @@ const TaskSection = memo(({ transparent }) => {
         <LayoutGroup>
             <motion.div className="space-y-3 pb-4">
                 <AnimatePresence initial={false}>
-                {/* Use sortedTasks instead of tasks */}
                 {sortedTasks.map(task => {
                     const isFocused = focusedTaskId === task.id;
                     const isOverdue = !task.completed && checkOverdue(task.dueDate);
