@@ -213,11 +213,13 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
                 >
                     <h2 className="text-3xl font-black mb-6 text-[#54a0ff] drop-shadow-sm tracking-tight text-center">Focus Goal?</h2>
                     <form onSubmit={confirmIntention} className="relative group w-full mb-6">
+                        {/* FIX: Removed 'if(focusedTaskId) setFocusedTaskId(null)' from onChange. 
+                            This allows users to edit the intention without disconnecting the timer from the task data. */}
                         <input 
                             ref={inputRef}
                             type="text" 
                             value={intention}
-                            onChange={(e) => { setIntention(e.target.value); if(focusedTaskId) setFocusedTaskId(null); }}
+                            onChange={(e) => setIntention(e.target.value)}
                             placeholder="I will..."
                             className="w-full bg-white border-4 border-[#e6e2d0] rounded-[2rem] p-5 text-xl font-black text-center text-[#594a42] placeholder-[#54a0ff]/30 outline-none focus:border-[#54a0ff] focus:shadow-xl transition-all shadow-sm"
                         />
@@ -248,7 +250,6 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
       {/* 1. Mode Switcher (Top) */}
       <div className="h-14 flex items-center relative z-20">
         <AnimatePresence>
-            {/* FIX: Included !autoStartBreaks again, so buttons disappear if auto-start is on */}
             {!isActive && !showFlowExtend && !autoStartBreaks && (
                 <motion.div 
                     initial={{ opacity: 0, y: -20 }} 

@@ -42,7 +42,7 @@ export const TaskProvider = ({ children }) => {
             setTasks(prev => {
               const prevMap = new Map(prev.map(t => [t.id, t]));
               
-              // 1. Merge Remote Tasks with Local Data (Preserving Categories & Estimates)
+              // 1. Merge Remote Tasks with Local Data (Preserving Categories, Estimates, & Completion)
               const mergedRemoteTasks = remoteTasks.map(nt => {
                   if (prevMap.has(nt.id)) {
                       const existing = prevMap.get(nt.id);
@@ -51,7 +51,15 @@ export const TaskProvider = ({ children }) => {
                           ...nt,       
                           // FIX: Explicitly preserve local fields that Todoist doesn't have
                           category: existing.category, 
-                          estimatedPomos: existing.estimatedPomos || 1
+                          estimatedPomos: existing.estimatedPomos || 1,
+                          
+                          // FIX: CRITICAL - Preserve completedPomos so it doesn't reset to 0
+                          completedPomos: existing.completedPomos || 0,
+                          
+                          // FIX: If local is completed, KEEP it completed. 
+                          // Todoist returns active tasks (completed=false). If we check it off in Nook, 
+                          // we don't want the sync to immediately uncheck it before the API update processes.
+                          completed: existing.completed || nt.completed
                       };
                   }
                   return nt;
@@ -59,7 +67,8 @@ export const TaskProvider = ({ children }) => {
 
               // 2. FIX: Preserve Locally Completed Tasks
               // Todoist API only returns active tasks. If we have a completed task locally, 
-              // it won't be in 'remoteTasks'. We need to keep it so stats count it.
+              // it won't be in 'remoteTasks' (if synced elsewhere or just now). 
+              // We need to keep it so stats count it.
               const remoteIds = new Set(remoteTasks.map(t => t.id));
               const preservedCompletedTasks = prev.filter(t => t.completed && !remoteIds.has(t.id));
 
