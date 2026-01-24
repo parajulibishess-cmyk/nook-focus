@@ -9,7 +9,7 @@ export const TaskProvider = ({ children }) => {
   const [todoistToken, setTodoistToken] = useState(() => localStorage.getItem('nook_todoist_token') || "");
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // OPTIMIZATION: Debounce localStorage writes
+  // OPTIMIZATION: Debounce localStorage writes to prevent blocking on every keystroke/update
   useEffect(() => { 
     const handler = setTimeout(() => {
         localStorage.setItem('nook_tasks', JSON.stringify(tasks));
@@ -28,7 +28,7 @@ export const TaskProvider = ({ children }) => {
             const data = await res.json();
             // These are the tasks currently ACTIVE on Todoist
             const remoteTasks = data.map(t => ({ 
-                id: String(t.id), // FIX: Ensure ID is string for consistent matching
+                id: t.id, 
                 text: t.content, 
                 priority: t.priority, 
                 category: "General", 
@@ -40,8 +40,7 @@ export const TaskProvider = ({ children }) => {
             }));
             
             setTasks(prev => {
-              // Create map using String ID to ensure matches work
-              const prevMap = new Map(prev.map(t => [String(t.id), t]));
+              const prevMap = new Map(prev.map(t => [t.id, t]));
               
               // 1. Merge Remote Tasks with Local Data (Preserving Categories & Estimates)
               const mergedRemoteTasks = remoteTasks.map(nt => {
@@ -50,6 +49,7 @@ export const TaskProvider = ({ children }) => {
                       return { 
                           ...existing, 
                           ...nt,       
+                          // FIX: Explicitly preserve local fields that Todoist doesn't have
                           category: existing.category, 
                           estimatedPomos: existing.estimatedPomos || 1
                       };
@@ -58,10 +58,10 @@ export const TaskProvider = ({ children }) => {
               });
 
               // 2. FIX: Preserve Locally Completed Tasks
-              // Todoist API only returns active tasks. If a task is completed locally,
-              // we MUST keep it in state, otherwise stats will drop to 0%.
+              // Todoist API only returns active tasks. If we have a completed task locally, 
+              // it won't be in 'remoteTasks'. We need to keep it so stats count it.
               const remoteIds = new Set(remoteTasks.map(t => t.id));
-              const preservedCompletedTasks = prev.filter(t => t.completed && !remoteIds.has(String(t.id)));
+              const preservedCompletedTasks = prev.filter(t => t.completed && !remoteIds.has(t.id));
 
               return [...mergedRemoteTasks, ...preservedCompletedTasks];
             });
@@ -69,11 +69,13 @@ export const TaskProvider = ({ children }) => {
     } catch(e){ console.error(e); } finally { setIsSyncing(false); }
   };
 
-  // Poll Todoist every 60 seconds
+  // NEW: Poll Todoist every 60 seconds (1 minute) to keep tasks in sync
   useEffect(() => {
     let interval;
     if (todoistToken) {
+        // Initial fetch to ensure data is fresh on load/token set
         fetchTodoistTasks();
+        
         interval = setInterval(() => {
             fetchTodoistTasks();
         }, 60000);
