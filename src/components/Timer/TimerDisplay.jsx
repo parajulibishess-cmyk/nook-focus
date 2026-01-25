@@ -9,12 +9,14 @@ import { useSettings } from '../../context/SettingsContext';
 import { useTasks } from '../../context/TaskContext';
 
 const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
-  const { timer, showFlowExtend, finishSession, extendSession } = useTimerContext();
+  // FIX: Destructure pauseSession from context to use the analytics wrapper
+  const { timer, showFlowExtend, finishSession, extendSession, pauseSession } = useTimerContext();
   const { durations, showPercentage, autoStartBreaks, breathingDuration } = useSettings();
   const { tasks, focusedTaskId, setFocusedTaskId } = useTasks();
   
-  // Destructure initialDuration from timer
-  const { timeLeft, isActive, mode, calculateProgress, startTimer, pauseTimer, setMode, initialDuration } = timer;
+  // Destructure initialDuration from timer. 
+  // Note: We do NOT use raw pauseTimer here anymore for the main button action.
+  const { timeLeft, isActive, mode, calculateProgress, startTimer, setMode, initialDuration } = timer;
   
   // Intention State
   const [intention, setIntention] = useState("");
@@ -110,11 +112,11 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
     // If we are in a break (not focus) and auto-start is enabled, 
     // pausing should "quit" the break and reset to focus.
     if (autoStartBreaks && mode !== 'focus') {
-        pauseTimer();
+        timer.pauseTimer(); // Use raw pause for break skipping
         setMode('focus');
     } else {
-        // Otherwise, just pause normally
-        pauseTimer();
+        // FIX: Use pauseSession() from context to trigger abandonment stats
+        pauseSession(); 
     }
   };
 
@@ -347,7 +349,7 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
                         key={isActive ? 'pause' : 'start'}
                         initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
                     >
-                        {/* FIX: Use handlePauseClick instead of pauseTimer directly */}
+                        {/* FIX: Use handlePauseClick which now routes to pauseSession correctly */}
                         <Button 
                             onClick={isActive ? handlePauseClick : handleStartClick} 
                             variant={isActive ? "secondary" : "primary"} 

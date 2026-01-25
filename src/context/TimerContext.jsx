@@ -92,6 +92,7 @@ export const TimerProvider = ({ children }) => {
         newCategoryDist[activeCategory] = (newCategoryDist[activeCategory] || 0) + durationToAdd;
 
         const newPriorityDist = { ...prev.priorityDist };
+        // FIX: Always update priority distribution if we have a task, handling the stats update here
         if (activeTask) {
              newPriorityDist[activePriority] = (newPriorityDist[activePriority] || 0) + durationToAdd;
         }
@@ -150,8 +151,7 @@ export const TimerProvider = ({ children }) => {
 
   // 1. Pause Wrapper: Tracks "Interruption Pattern" and "Flow Depth"
   const pauseSession = () => {
-    timer.pauseTimer();
-    // Only track pauses during active focus sessions
+    // FIX: Track abandonment immediately when pausing a focus session
     if (timer.mode === 'focus' && timer.isActive) {
         const progress = timer.calculateProgress();
         
@@ -164,6 +164,8 @@ export const TimerProvider = ({ children }) => {
             return {
                 ...prev,
                 totalPauses: (prev.totalPauses || 0) + 1,
+                // FIX: Increment abandonedSessions on every pause as requested
+                abandonedSessions: (prev.abandonedSessions || 0) + 1,
                 pauseDist: {
                     ...(prev.pauseDist || { "0-25": 0, "25-50": 0, "50-75": 0, "75-100": 0 }),
                     [bucket]: ((prev.pauseDist?.[bucket] || 0) + 1)
@@ -171,13 +173,18 @@ export const TimerProvider = ({ children }) => {
             };
         });
     }
+    
+    timer.pauseTimer();
   };
 
-  // 2. Cancel Wrapper: Tracks "Abandonment Rate"
+  // 2. Cancel Wrapper: Tracks "Abandonment Rate" (Resetting)
   const cancelSession = () => {
     timer.pauseTimer();
     timer.setMode(timer.mode); // Resets timer to initial state
     
+    // Note: If pauseSession handles the abandonment count, we might not need to double count here 
+    // unless 'cancel' is distinct from 'pause'. 
+    // Assuming cancel is a "hard stop" without a preceding pause, we count it.
     if (timer.mode === 'focus') {
         setStats(prev => ({
             ...prev,

@@ -60,23 +60,14 @@ export const useAnalyticsCalculations = () => {
     };
 
     const getPriorityFocus = () => {
-        // FIX: Calculate dynamically from tasks instead of empty stats.priorityDist
-        // We use completedPomos to weight the focus time.
-        const tasksWithTime = tasks.filter(t => (t.completedPomos || 0) > 0);
+        // FIX: Reverted to using stats.priorityDist because iterating through 'tasks' 
+        // loses data when tasks are deleted. stats.priorityDist persists historically.
         
-        if (tasksWithTime.length === 0) return 0;
+        const dist = stats.priorityDist || { 4: 0, 3: 0, 2: 0, 1: 0 };
         
-        let highPrioTime = 0;
-        let totalTime = 0;
-
-        tasksWithTime.forEach(t => {
-            const pomos = t.completedPomos || 0;
-            totalTime += pomos;
-            // P1 (value 4) and P2 (value 3) are High Priority
-            if (t.priority >= 3) {
-                highPrioTime += pomos;
-            }
-        });
+        // P1 (4) and P2 (3) are considered High Priority
+        const highPrioTime = (dist[4] || 0) + (dist[3] || 0);
+        const totalTime = Object.values(dist).reduce((acc, curr) => acc + curr, 0);
 
         if (totalTime === 0) return 0;
         return Math.round((highPrioTime / totalTime) * 100);
