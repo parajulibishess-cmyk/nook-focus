@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, Zap, Coffee, Music, CheckSquare } from 'lucide-react';
+import { Play, Pause, Zap, Coffee, Music, CheckSquare, Flag } from 'lucide-react'; // Added Flag icon
 import Button from '../UI/Button';
 import SafeLink from '../UI/SafeLink';
 import { useTimerContext } from '../../context/TimerContext';
@@ -9,8 +9,8 @@ import { useSettings } from '../../context/SettingsContext';
 import { useTasks } from '../../context/TaskContext';
 
 const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
-  // FIX: Destructure pauseSession from context to use the analytics wrapper
-  const { timer, showFlowExtend, finishSession, extendSession, pauseSession } = useTimerContext();
+  // FIX: Destructure cancelSession
+  const { timer, showFlowExtend, finishSession, extendSession, pauseSession, cancelSession } = useTimerContext();
   const { durations, showPercentage, autoStartBreaks, breathingDuration } = useSettings();
   const { tasks, focusedTaskId, setFocusedTaskId } = useTasks();
   
@@ -156,6 +156,10 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
   const progress = calculateProgress();
   const radius = 115; 
   const circumference = 2 * Math.PI * radius;
+
+  // CHECK: Is the active task completed?
+  const activeTask = tasks.find(t => t.id === focusedTaskId);
+  const isTaskCompleted = activeTask?.completed;
 
   return (
     <div className="w-full flex-1 h-full flex flex-col items-center justify-between relative">
@@ -321,10 +325,13 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
                     >
                         <span className="flex items-center gap-3 bg-white/25 px-6 py-3 rounded-2xl backdrop-blur-md shadow-lg border border-white/20 text-sm font-bold ring-1 ring-white/10">
                             <span className="relative flex h-3 w-3">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ff6b6b] opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-3 w-3 bg-[#ff6b6b]"></span>
+                                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isTaskCompleted ? 'bg-emerald-400' : 'bg-[#ff6b6b]'}`}></span>
+                                <span className={`relative inline-flex rounded-full h-3 w-3 ${isTaskCompleted ? 'bg-emerald-400' : 'bg-[#ff6b6b]'}`}></span>
                             </span>
-                            <span className="truncate max-w-[280px]">Focusing on: <span className="text-white drop-shadow-sm">{intention}</span></span>
+                            <span className="truncate max-w-[280px]">
+                                {isTaskCompleted ? "Task Completed: " : "Focusing on: "} 
+                                <span className="text-white drop-shadow-sm">{intention}</span>
+                            </span>
                         </span>
                     </motion.div>
                 )}
@@ -346,18 +353,39 @@ const TimerDisplay = ({ isMinimalist, onOpenModal }) => {
                     </motion.div>
                 ) : (
                     <motion.div 
-                        key={isActive ? 'pause' : 'start'}
+                        key={isActive ? 'controls' : 'start'}
                         initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
                     >
-                        {/* FIX: Use handlePauseClick which now routes to pauseSession correctly */}
-                        <Button 
-                            onClick={isActive ? handlePauseClick : handleStartClick} 
-                            variant={isActive ? "secondary" : "primary"} 
-                            icon={isActive ? Pause : Play} 
-                            className="min-w-[160px] text-xl py-4 shadow-xl"
-                        >
-                            {isActive ? 'Pause' : 'Start'}
-                        </Button>
+                        {/* FIX: Show "Finish Early" if task is done and timer is running */}
+                        {isActive && mode === 'focus' && isTaskCompleted ? (
+                             <div className="flex gap-3">
+                                <Button 
+                                    onClick={handlePauseClick} 
+                                    variant="secondary"
+                                    icon={Pause} 
+                                    className="min-w-[120px] text-lg py-4 shadow-xl"
+                                >
+                                    Pause
+                                </Button>
+                                <Button 
+                                    onClick={cancelSession} 
+                                    variant="primary" 
+                                    icon={Flag} // Flag icon for finish
+                                    className="min-w-[140px] text-lg py-4 shadow-xl bg-emerald-500 border-emerald-600 shadow-[0_4px_0_#059669] hover:bg-emerald-400"
+                                >
+                                    Finish Now
+                                </Button>
+                            </div>
+                        ) : (
+                            <Button 
+                                onClick={isActive ? handlePauseClick : handleStartClick} 
+                                variant={isActive ? "secondary" : "primary"} 
+                                icon={isActive ? Pause : Play} 
+                                className="min-w-[160px] text-xl py-4 shadow-xl"
+                            >
+                                {isActive ? 'Pause' : 'Start'}
+                            </Button>
+                        )}
                     </motion.div>
                 )}
             </AnimatePresence>

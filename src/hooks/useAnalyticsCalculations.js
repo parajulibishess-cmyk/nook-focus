@@ -79,7 +79,8 @@ export const useAnalyticsCalculations = () => {
 
     const getProcrastinationIndex = () => {
         // FIX: Calculate based on Due Dates (Overdue time)
-        const completedTasks = allTasks.filter(t => t.completed && t.completedAt && t.dueDate);
+        // Ensure t.completedAt is valid (greater than 0)
+        const completedTasks = allTasks.filter(t => t.completed && t.completedAt && t.completedAt > 0 && t.dueDate);
         if (completedTasks.length === 0) return "0h";
         
         let totalDiff = 0;
@@ -89,10 +90,9 @@ export const useAnalyticsCalculations = () => {
             // Parse YYYY-MM-DD from Todoist/Local
             const parts = t.dueDate.split('-');
             // Create a date object for the END of the due date (23:59:59)
-            // Note: Month is 0-indexed in JS Date
             const dueEnd = new Date(parts[0], parts[1]-1, parts[2], 23, 59, 59, 999);
             
-            // Only count if completed AFTER the due date
+            // CHECK: Explicitly only count if completedAt is strictly greater than dueEnd
             if (t.completedAt > dueEnd.getTime()) {
                 totalDiff += (t.completedAt - dueEnd.getTime());
                 count++;

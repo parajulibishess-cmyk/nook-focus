@@ -84,7 +84,11 @@ const TaskSection = memo(({ transparent }) => {
             const newStatus = !t.completed;
             const now = Date.now();
             if (newStatus) setStats(s => ({ ...s, tasksCompleted: s.tasksCompleted + 1 }));
-            if (focusedTaskId === id && newStatus) setFocusedTaskId(null);
+            
+            // FIX: REMOVED the line that cleared focus upon completion.
+            // This allows the Timer to see that the currently focused task is now done.
+            // Old line was: if (focusedTaskId === id && newStatus) setFocusedTaskId(null);
+
             if (todoistToken) {
                 fetch(`https://api.todoist.com/rest/v2/tasks/${id}/${newStatus ? 'close' : 'reopen'}`, { method: 'POST', headers: { 'Authorization': `Bearer ${todoistToken}` } }).catch(console.error);
             }
@@ -200,7 +204,7 @@ const TaskSection = memo(({ transparent }) => {
                                 </div>
                             </div>
                             <div className="flex gap-1">
-                                <motion.button whileHover={{scale:1.1}} onClick={() => !task.completed && setFocusedTaskId(isFocused ? null : task.id)} className={`p-2 rounded-xl transition-colors ${isFocused ? 'bg-[#78b159] text-white shadow-md' : 'text-[#a4b0be] hover:bg-[#f1f2f6]'} ${task.completed ? 'opacity-0 pointer-events-none' : ''}`}><Target size={18} /></motion.button>
+                                <motion.button whileHover={{scale:1.1}} onClick={() => setFocusedTaskId(isFocused ? null : task.id)} className={`p-2 rounded-xl transition-colors ${isFocused ? 'bg-[#78b159] text-white shadow-md' : 'text-[#a4b0be] hover:bg-[#f1f2f6]'} ${task.completed ? '' : ''}`}><Target size={18} /></motion.button>
                                 <motion.button whileHover={{scale:1.1}} onClick={() => discardTask(task.id)} className="opacity-0 group-hover:opacity-100 text-[#ff6b6b] hover:bg-[#fff0f0] p-2 rounded-xl transition-opacity"><Trash2 size={18} /></motion.button>
                             </div>
                         </motion.div>
