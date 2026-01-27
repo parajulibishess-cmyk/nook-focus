@@ -155,17 +155,25 @@ export const TimerProvider = ({ children }) => {
     if (timer.mode === 'focus' && timer.isActive) {
         const progress = timer.calculateProgress();
         
+        // CHECK: Is the linked task completed?
+        const activeTask = tasks.find(t => t.id === focusedTaskId);
+        const isTaskCompleted = activeTask?.completed;
+
         setStats(prev => {
             let bucket = "0-25";
             if (progress > 75) bucket = "75-100";
             else if (progress > 50) bucket = "50-75";
             else if (progress > 25) bucket = "25-50";
 
+            // Only count as abandoned if the task is NOT completed
+            // (If task is done, pausing is just a break, not abandonment)
+            const shouldAbandon = !isTaskCompleted;
+
             return {
                 ...prev,
                 totalPauses: (prev.totalPauses || 0) + 1,
-                // FIX: Increment abandonedSessions on every pause as requested
-                abandonedSessions: (prev.abandonedSessions || 0) + 1,
+                // FIX: Increment abandonedSessions only if not justified by completion
+                abandonedSessions: shouldAbandon ? (prev.abandonedSessions || 0) + 1 : (prev.abandonedSessions || 0),
                 pauseDist: {
                     ...(prev.pauseDist || { "0-25": 0, "25-50": 0, "50-75": 0, "75-100": 0 }),
                     [bucket]: ((prev.pauseDist?.[bucket] || 0) + 1)
@@ -182,14 +190,18 @@ export const TimerProvider = ({ children }) => {
     timer.pauseTimer();
     timer.setMode(timer.mode); // Resets timer to initial state
     
-    // Note: If pauseSession handles the abandonment count, we might not need to double count here 
-    // unless 'cancel' is distinct from 'pause'. 
-    // Assuming cancel is a "hard stop" without a preceding pause, we count it.
+    // CHECK: Is the linked task completed?
+    const activeTask = tasks.find(t => t.id === focusedTaskId);
+    const isTaskCompleted = activeTask?.completed;
+    
     if (timer.mode === 'focus') {
-        setStats(prev => ({
-            ...prev,
-            abandonedSessions: (prev.abandonedSessions || 0) + 1
-        }));
+        // Only count as abandoned if the task is NOT completed
+        if (!isTaskCompleted) {
+            setStats(prev => ({
+                ...prev,
+                abandonedSessions: (prev.abandonedSessions || 0) + 1
+            }));
+        }
     }
   };
 
