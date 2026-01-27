@@ -1,4 +1,4 @@
-import React, { useState, memo, useMemo } from 'react'; // Added useMemo
+import React, { useState, memo, useMemo } from 'react'; 
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { useTasks } from '../../context/TaskContext';
 import { useStats } from '../../context/StatsContext';
@@ -7,7 +7,8 @@ import Card from '../UI/Card';
 import Calendar from '../UI/Calendar';
 
 const TaskSection = memo(({ transparent }) => {
-  const { tasks, setTasks, focusedTaskId, setFocusedTaskId, todoistToken } = useTasks();
+  // Destructure deleteTask and todoistSections
+  const { tasks, setTasks, focusedTaskId, setFocusedTaskId, todoistToken, deleteTask, todoistSections } = useTasks();
   const { setStats } = useStats(); 
   const [newTask, setNewTask] = useState("");
   const [newPriority, setNewPriority] = useState(1);
@@ -25,32 +26,14 @@ const TaskSection = memo(({ transparent }) => {
     { name: "Reading", icon: Book, color: "text-[#78b159]" }
   ];
 
-  // Logic to sort tasks based on completion status, due date, and priority
   const sortedTasks = useMemo(() => {
     return [...tasks].sort((a, b) => {
-      // 1. Move completed tasks to the bottom of the list
-      if (a.completed !== b.completed) {
-        return a.completed ? 1 : -1;
-      }
-
-      // 2. Sort by due date: Overdue -> Today -> Future -> No Date
+      if (a.completed !== b.completed) return a.completed ? 1 : -1;
       const dateA = a.dueDate ? new Date(a.dueDate + 'T00:00').getTime() : Infinity;
       const dateB = b.dueDate ? new Date(b.dueDate + 'T00:00').getTime() : Infinity;
-
-      if (dateA !== dateB) {
-        return dateA - dateB;
-      }
-
-      // 3. Secondary sort by priority (High to Low)
-      if (b.priority !== a.priority) {
-        return b.priority - a.priority;
-      }
-
-      // 4. For completed tasks, show the most recently completed ones first
-      if (a.completed && b.completed) {
-        return (b.completedAt || 0) - (a.completedAt || 0);
-      }
-
+      if (dateA !== dateB) return dateA - dateB;
+      if (b.priority !== a.priority) return b.priority - a.priority;
+      if (a.completed && b.completed) return (b.completedAt || 0) - (a.completedAt || 0);
       return 0;
     });
   }, [tasks]);
@@ -59,7 +42,6 @@ const TaskSection = memo(({ transparent }) => {
     e.preventDefault();
     if (!newTask.trim()) return;
     const tempId = Date.now();
-    // FIX: Added createdAt: Date.now() so stats can calculate delays
     const taskObj = { 
         id: tempId, 
         text: newTask, 
@@ -77,7 +59,17 @@ const TaskSection = memo(({ transparent }) => {
     
     if (todoistToken) {
         try { 
-            const res = await fetch('https://api.todoist.com/rest/v2/tasks', { method: 'POST', headers: { 'Authorization': `Bearer ${todoistToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ content: newTask, priority: newPriority, due_date: newDueDate || undefined }) });
+            // FIX: Find the correct section ID for the category
+            const sectionId = todoistSections[newCategory];
+            
+            const payload = { 
+                content: newTask, 
+                priority: newPriority, 
+                due_date: newDueDate || undefined,
+                section_id: sectionId // Send task to specific section in Todoist
+            };
+
+            const res = await fetch('https://api.todoist.com/rest/v2/tasks', { method: 'POST', headers: { 'Authorization': `Bearer ${todoistToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             if (res.ok) {
                 const data = await res.json();
                 setTasks(prev => prev.map(t => t.id === tempId ? { ...t, id: data.id, isSyncing: false } : t));
@@ -91,14 +83,11 @@ const TaskSection = memo(({ transparent }) => {
         if (t.id === id) {
             const newStatus = !t.completed;
             const now = Date.now();
-            
             if (newStatus) setStats(s => ({ ...s, tasksCompleted: s.tasksCompleted + 1 }));
             if (focusedTaskId === id && newStatus) setFocusedTaskId(null);
-            
             if (todoistToken) {
                 fetch(`https://api.todoist.com/rest/v2/tasks/${id}/${newStatus ? 'close' : 'reopen'}`, { method: 'POST', headers: { 'Authorization': `Bearer ${todoistToken}` } }).catch(console.error);
             }
-            
             return { ...t, completed: newStatus, completedAt: newStatus ? now : null };
         }
         return t;
@@ -106,7 +95,8 @@ const TaskSection = memo(({ transparent }) => {
   };
 
   const discardTask = async (id) => {
-      setTasks(prev => prev.filter(t => t.id !== id));
+      // FIX: Use context deleteTask (which archives) instead of filtering manually
+      deleteTask(id);
       if (focusedTaskId === id) setFocusedTaskId(null);
   };
   

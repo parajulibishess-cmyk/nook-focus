@@ -1,9 +1,17 @@
 import { useStats } from '../context/StatsContext';
 import { useTasks } from '../context/TaskContext';
+import { useMemo } from 'react';
 
 export const useAnalyticsCalculations = () => {
     const { stats } = useStats();
-    const { tasks } = useTasks();
+    // FIX: Import archivedTasks
+    const { tasks, archivedTasks } = useTasks();
+
+    // COMBINE: Use active + archived for all historical calculations
+    const allTasks = useMemo(() => {
+        const archived = archivedTasks || [];
+        return [...tasks, ...archived];
+    }, [tasks, archivedTasks]);
 
     // --- HELPER FUNCTIONS ---
     
@@ -39,7 +47,8 @@ export const useAnalyticsCalculations = () => {
     };
 
     const getEstimationAccuracy = () => {
-        const completedWithEstimates = tasks.filter(t => t.completed);
+        // FIX: Use allTasks
+        const completedWithEstimates = allTasks.filter(t => t.completed);
         
         if (completedWithEstimates.length === 0) return { val: 100, text: "No data", color: "#a4b0be" };
         
@@ -60,12 +69,7 @@ export const useAnalyticsCalculations = () => {
     };
 
     const getPriorityFocus = () => {
-        // FIX: Reverted to using stats.priorityDist because iterating through 'tasks' 
-        // loses data when tasks are deleted. stats.priorityDist persists historically.
-        
         const dist = stats.priorityDist || { 4: 0, 3: 0, 2: 0, 1: 0 };
-        
-        // P1 (4) and P2 (3) are considered High Priority
         const highPrioTime = (dist[4] || 0) + (dist[3] || 0);
         const totalTime = Object.values(dist).reduce((acc, curr) => acc + curr, 0);
 
@@ -74,7 +78,8 @@ export const useAnalyticsCalculations = () => {
     };
 
     const getProcrastinationIndex = () => {
-        const completedTasks = tasks.filter(t => t.completed && t.completedAt);
+        // FIX: Use allTasks
+        const completedTasks = allTasks.filter(t => t.completed && t.completedAt);
         if (completedTasks.length === 0) return "0h";
         
         let totalDiff = 0;
@@ -97,7 +102,6 @@ export const useAnalyticsCalculations = () => {
         if (count === 0) return "0h";
 
         const avgMs = totalDiff / count;
-        // FIX: Handle durations less than an hour
         const avgMinutes = Math.round(avgMs / (1000 * 60));
         
         if (avgMinutes < 60) return `${avgMinutes}m`;
@@ -109,7 +113,7 @@ export const useAnalyticsCalculations = () => {
 
     const getCategoryChampion = () => {
         const cats = {};
-        tasks.forEach(t => {
+        allTasks.forEach(t => {
             if (!cats[t.category]) cats[t.category] = { total: 0, completed: 0 };
             cats[t.category].total++;
             if (t.completed) cats[t.category].completed++;
@@ -134,7 +138,6 @@ export const useAnalyticsCalculations = () => {
     };
 
     const getAbandonmentRate = () => {
-        // FIX: Ensure values exist before calculating
         const focus = stats.sessionCounts?.focus || 0;
         const abandoned = stats.abandonedSessions || 0;
         const total = focus + abandoned;
@@ -172,7 +175,8 @@ export const useAnalyticsCalculations = () => {
         return Object.entries(months).sort().slice(-6);
     };
 
-    const completionRate = tasks.length > 0 ? Math.round((tasks.filter(t => t.completed).length / tasks.length) * 100) : 0;
+    // FIX: Use allTasks
+    const completionRate = allTasks.length > 0 ? Math.round((allTasks.filter(t => t.completed).length / allTasks.length) * 100) : 0;
     const distMax = Math.max(...Object.values(stats.categoryDist || { "General": 0 }), 1);
 
     return {

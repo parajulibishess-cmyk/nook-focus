@@ -5,11 +5,13 @@ export const useTasks = () => useContext(TaskContext);
 
 export const TaskProvider = ({ children }) => {
   const [tasks, setTasks] = useState(() => JSON.parse(localStorage.getItem('nook_tasks')) || []);
+  const [archivedTasks, setArchivedTasks] = useState(() => JSON.parse(localStorage.getItem('nook_archived_tasks')) || []);
   const [focusedTaskId, setFocusedTaskId] = useState(null);
   const [todoistToken, setTodoistToken] = useState(() => localStorage.getItem('nook_todoist_token') || "");
   const [isSyncing, setIsSyncing] = useState(false);
+  const [todoistSections, setTodoistSections] = useState({}); // Map: "Study" -> 12345 (ID)
 
-  // OPTIMIZATION: Debounce localStorage writes to prevent blocking on every keystroke/update
+  // OPTIMIZATION: Debounce localStorage writes
   useEffect(() => { 
     const handler = setTimeout(() => {
         localStorage.setItem('nook_tasks', JSON.stringify(tasks));
@@ -17,64 +19,110 @@ export const TaskProvider = ({ children }) => {
     return () => clearTimeout(handler);
   }, [tasks]);
 
+  // PERSISTENCE: Save archived tasks
+  useEffect(() => {
+    localStorage.setItem('nook_archived_tasks', JSON.stringify(archivedTasks));
+  }, [archivedTasks]);
+
   useEffect(() => { localStorage.setItem('nook_todoist_token', todoistToken); }, [todoistToken]);
+
+  // NEW: Archive function to preserve stats when "discarding"
+  const deleteTask = (taskId) => {
+    setTasks(currentTasks => {
+      const taskToDelete = currentTasks.find(t => t.id === taskId);
+      if (taskToDelete) {
+        setArchivedTasks(prev => {
+          // Avoid duplicates
+          if (prev.find(a => a.id === taskId)) return prev;
+          return [...prev, { ...taskToDelete, archivedAt: Date.now() }];
+        });
+      }
+      return currentTasks.filter(t => t.id !== taskId);
+    });
+  };
 
   const fetchTodoistTasks = async () => {
     if(!todoistToken) return;
     setIsSyncing(true);
     try {
+        // 1. Fetch Sections first to map IDs <-> Names
+        const sectionsRes = await fetch('https://api.todoist.com/rest/v2/sections', { 
+            headers: { 'Authorization': `Bearer ${todoistToken}` } 
+        });
+        
+        let sectionIdToName = {};
+        if (sectionsRes.ok) {
+            const sectionsData = await sectionsRes.json();
+            const nameToId = {};
+            sectionsData.forEach(s => {
+                sectionIdToName[s.id] = s.name;
+                nameToId[s.name] = s.id;
+            });
+            setTodoistSections(nameToId); // Store for outgoing tasks
+        }
+
+        // 2. Fetch Tasks
         const res = await fetch('https://api.todoist.com/rest/v2/tasks', { headers: { 'Authorization': `Bearer ${todoistToken}` } });
         if (res.ok) {
             const data = await res.json();
-            // These are the tasks currently ACTIVE on Todoist
-            const remoteTasks = data.map(t => ({ 
-                id: t.id, 
-                text: t.content, 
-                priority: t.priority, 
-                category: "General", 
-                completed: t.is_completed, 
-                isSyncing: false,
-                dueDate: t.due ? t.due.date : null, 
-                estimatedPomos: 1,
-                // FIX: Import the created_at time so Procrastination Index works for Todoist tasks
-                createdAt: t.created_at 
-            }));
+            
+            const remoteTasks = data.map(t => {
+                let content = t.content;
+                let category = "General";
+
+                // STRATEGY A: Check for text command "/Study"
+                const categoryMatch = content.match(/(?:^|\s)\/(\w+)(?:\s|$)/);
+                if (categoryMatch) {
+                    category = categoryMatch[1];
+                    content = content.replace(categoryMatch[0], ' ').trim();
+                } 
+                // STRATEGY B: Check Section ID (if no text command found)
+                else if (t.section_id && sectionIdToName[t.section_id]) {
+                    const secName = sectionIdToName[t.section_id];
+                    // Map common section names to Nook categories
+                    if (["Work", "Study", "Creative", "Reading"].includes(secName)) {
+                        category = secName;
+                    }
+                }
+
+                return { 
+                    id: t.id, 
+                    text: content, 
+                    priority: t.priority, 
+                    category: category, 
+                    completed: t.is_completed, 
+                    isSyncing: false,
+                    dueDate: t.due ? t.due.date : null, 
+                    estimatedPomos: 1,
+                    createdAt: t.created_at // Important for Procrastination Index
+                };
+            });
             
             setTasks(prev => {
               const prevMap = new Map(prev.map(t => [t.id, t]));
               
-              // 1. Merge Remote Tasks with Local Data (Preserving Categories, Estimates, & Completion)
               const mergedRemoteTasks = remoteTasks.map(nt => {
                   if (prevMap.has(nt.id)) {
                       const existing = prevMap.get(nt.id);
+                      
+                      // Prefer remote category if it's specific (not General), else keep local
+                      const finalCategory = (nt.category !== "General") ? nt.category : existing.category;
+
                       return { 
                           ...existing, 
                           ...nt,       
-                          // FIX: Explicitly preserve local fields that Todoist doesn't have
-                          category: existing.category, 
+                          category: finalCategory, 
                           estimatedPomos: existing.estimatedPomos || 1,
-                          
-                          // FIX: CRITICAL - Preserve completedPomos so it doesn't reset to 0
                           completedPomos: existing.completedPomos || 0,
-                          
-                          // FIX: Preserve creation time if local has it, otherwise use remote
                           createdAt: existing.createdAt || nt.createdAt,
-
-                          // FIX: If local is completed, KEEP it completed. 
-                          // Todoist returns active tasks (completed=false). If we check it off in Nook, 
-                          // we don't want the sync to immediately uncheck it before the API update processes.
                           completed: existing.completed || nt.completed
                       };
                   }
                   return nt;
               });
 
-              // 2. FIX: Preserve Locally Completed Tasks
-              // Todoist API only returns active tasks. If we have a completed task locally, 
-              // it won't be in 'remoteTasks' (if synced elsewhere or just now). 
-              // We need to keep it so stats count it.
+              // Preserve locally completed/archived tasks so they don't disappear during sync
               const remoteIds = new Set(remoteTasks.map(t => t.id));
-              // Also preserve tasks that are currently syncing (isSyncing: true) so they don't vanish
               const preservedTasks = prev.filter(t => 
                   (t.completed && !remoteIds.has(t.id)) || 
                   (t.isSyncing && !remoteIds.has(t.id))
@@ -86,13 +134,10 @@ export const TaskProvider = ({ children }) => {
     } catch(e){ console.error(e); } finally { setIsSyncing(false); }
   };
 
-  // NEW: Poll Todoist every 60 seconds (1 minute) to keep tasks in sync
   useEffect(() => {
     let interval;
     if (todoistToken) {
-        // Initial fetch to ensure data is fresh on load/token set
         fetchTodoistTasks();
-        
         interval = setInterval(() => {
             fetchTodoistTasks();
         }, 60000);
@@ -104,10 +149,12 @@ export const TaskProvider = ({ children }) => {
 
   const value = useMemo(() => ({
     tasks, setTasks, 
+    archivedTasks, deleteTask, // Exported for TaskSection
+    todoistSections, // Exported for TaskSection
     focusedTaskId, setFocusedTaskId, 
     todoistToken, setTodoistToken, 
     fetchTodoistTasks, isSyncing 
-  }), [tasks, focusedTaskId, todoistToken, isSyncing]);
+  }), [tasks, archivedTasks, todoistSections, focusedTaskId, todoistToken, isSyncing]);
 
   return (
     <TaskContext.Provider value={value}>
