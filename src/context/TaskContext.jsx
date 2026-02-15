@@ -26,12 +26,13 @@ export const TaskProvider = ({ children }) => {
 
   useEffect(() => { localStorage.setItem('nook_todoist_token', todoistToken); }, [todoistToken]);
 
-  // Archive function to preserve stats when "discarding"
+  // NEW: Archive function to preserve stats when "discarding"
   const deleteTask = (taskId) => {
     setTasks(currentTasks => {
       const taskToDelete = currentTasks.find(t => t.id === taskId);
       if (taskToDelete) {
         setArchivedTasks(prev => {
+          // Avoid duplicates
           if (prev.find(a => a.id === taskId)) return prev;
           return [...prev, { ...taskToDelete, archivedAt: Date.now() }];
         });
@@ -44,7 +45,7 @@ export const TaskProvider = ({ children }) => {
     if(!todoistToken) return;
     setIsSyncing(true);
     try {
-        // 1. Fetch Sections
+        // 1. Fetch Sections first to map IDs <-> Names
         const sectionsRes = await fetch('https://api.todoist.com/rest/v2/sections', { 
             headers: { 'Authorization': `Bearer ${todoistToken}` } 
         });
@@ -57,31 +58,33 @@ export const TaskProvider = ({ children }) => {
                 sectionIdToName[s.id] = s.name;
                 nameToId[s.name] = s.id;
             });
-            setTodoistSections(nameToId); 
+            setTodoistSections(nameToId); // Store for outgoing tasks
         }
 
         // 2. Fetch Tasks
         const res = await fetch('https://api.todoist.com/rest/v2/tasks', { headers: { 'Authorization': `Bearer ${todoistToken}` } });
-        
         if (res.ok) {
             const data = await res.json();
-            // ... (keep your existing mapping logic here) ...
             
-            // COPY THE ENTIRE MAPPING AND setTasks LOGIC FROM YOUR ORIGINAL FILE HERE
-            const remoteTasks = data.map(t => { 
-                /* ... use original mapping code ... */ 
+            const remoteTasks = data.map(t => {
                 let content = t.content;
                 let category = "General";
+
+                // STRATEGY A: Check for text command "/Study"
                 const categoryMatch = content.match(/(?:^|\s)\/(\w+)(?:\s|$)/);
                 if (categoryMatch) {
                     category = categoryMatch[1];
                     content = content.replace(categoryMatch[0], ' ').trim();
-                } else if (t.section_id && sectionIdToName[t.section_id]) {
+                } 
+                // STRATEGY B: Check Section ID (if no text command found)
+                else if (t.section_id && sectionIdToName[t.section_id]) {
                     const secName = sectionIdToName[t.section_id];
+                    // Map common section names to Nook categories
                     if (["Work", "Study", "Creative", "Reading"].includes(secName)) {
                         category = secName;
                     }
                 }
+
                 return { 
                     id: t.id, 
                     text: content, 
@@ -91,28 +94,42 @@ export const TaskProvider = ({ children }) => {
                     isSyncing: false,
                     dueDate: t.due ? t.due.date : null, 
                     estimatedPomos: 1,
-                    createdAt: t.created_at 
+                    createdAt: t.created_at // Important for Procrastination Index
                 };
             });
-
+            
             setTasks(prev => {
               const prevMap = new Map(prev.map(t => [t.id, t]));
+              
               const mergedRemoteTasks = remoteTasks.map(nt => {
                   if (prevMap.has(nt.id)) {
                       const existing = prevMap.get(nt.id);
+                      
+                      // Prefer remote category if it's specific (not General), else keep local
                       const finalCategory = (nt.category !== "General") ? nt.category : existing.category;
-                      return { ...existing, ...nt, category: finalCategory, estimatedPomos: existing.estimatedPomos || 1, completedPomos: existing.completedPomos || 0, createdAt: existing.createdAt || nt.createdAt, completed: existing.completed || nt.completed };
+
+                      return { 
+                          ...existing, 
+                          ...nt,       
+                          category: finalCategory, 
+                          estimatedPomos: existing.estimatedPomos || 1,
+                          completedPomos: existing.completedPomos || 0,
+                          createdAt: existing.createdAt || nt.createdAt,
+                          completed: existing.completed || nt.completed
+                      };
                   }
                   return nt;
               });
+
+              // Preserve locally completed/archived tasks so they don't disappear during sync
               const remoteIds = new Set(remoteTasks.map(t => t.id));
-              const preservedTasks = prev.filter(t => (t.completed && !remoteIds.has(t.id)) || (t.isSyncing && !remoteIds.has(t.id)));
+              const preservedTasks = prev.filter(t => 
+                  (t.completed && !remoteIds.has(t.id)) || 
+                  (t.isSyncing && !remoteIds.has(t.id))
+              );
+
               return [...mergedRemoteTasks, ...preservedTasks];
             });
-            
-        } else {
-            // NEW: Log error if fetch fails (e.g. 401 Unauthorized)
-            console.error("Failed to fetch Todoist tasks. Status:", res.status);
         }
     } catch(e){ console.error(e); } finally { setIsSyncing(false); }
   };
@@ -121,10 +138,9 @@ export const TaskProvider = ({ children }) => {
     let interval;
     if (todoistToken) {
         fetchTodoistTasks();
-        // CHANGED: Reduced interval to 5 seconds for faster syncing
         interval = setInterval(() => {
             fetchTodoistTasks();
-        }, 5000);
+        }, 60000);
     }
     return () => {
         if (interval) clearInterval(interval);
@@ -133,8 +149,8 @@ export const TaskProvider = ({ children }) => {
 
   const value = useMemo(() => ({
     tasks, setTasks, 
-    archivedTasks, deleteTask,
-    todoistSections, 
+    archivedTasks, deleteTask, // Exported for TaskSection
+    todoistSections, // Exported for TaskSection
     focusedTaskId, setFocusedTaskId, 
     todoistToken, setTodoistToken, 
     fetchTodoistTasks, isSyncing 
