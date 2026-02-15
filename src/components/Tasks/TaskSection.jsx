@@ -7,7 +7,6 @@ import Card from '../UI/Card';
 import Calendar from '../UI/Calendar';
 
 const TaskSection = memo(({ transparent }) => {
-  // Destructure deleteTask and todoistSections
   const { tasks, setTasks, focusedTaskId, setFocusedTaskId, todoistToken, deleteTask, todoistSections } = useTasks();
   const { setStats } = useStats(); 
   const [newTask, setNewTask] = useState("");
@@ -41,6 +40,7 @@ const TaskSection = memo(({ transparent }) => {
   const addTask = async (e) => {
     e.preventDefault();
     if (!newTask.trim()) return;
+    
     const tempId = Date.now();
     const taskObj = { 
         id: tempId, 
@@ -51,30 +51,44 @@ const TaskSection = memo(({ transparent }) => {
         estimatedPomos: newEstimate, 
         completedPomos: 0, 
         completed: false, 
-        isSyncing: !!todoistToken,
+        isSyncing: !!todoistToken, // Starts loading if token exists
         createdAt: Date.now() 
     };
+    
+    // Optimistic update: Show task immediately
     setTasks(prev => [...prev, taskObj]);
     setNewTask(""); setNewPriority(1); setNewDueDate(""); setNewCategory("General"); setNewEstimate(1); setShowCalendar(false);
     
     if (todoistToken) {
         try { 
-            // FIX: Find the correct section ID for the category
             const sectionId = todoistSections[newCategory];
-            
             const payload = { 
                 content: newTask, 
                 priority: newPriority, 
                 due_date: newDueDate || undefined,
-                section_id: sectionId // Send task to specific section in Todoist
+                section_id: sectionId 
             };
 
-            const res = await fetch('https://api.todoist.com/rest/v2/tasks', { method: 'POST', headers: { 'Authorization': `Bearer ${todoistToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const res = await fetch('https://api.todoist.com/rest/v2/tasks', { 
+                method: 'POST', 
+                headers: { 'Authorization': `Bearer ${todoistToken}`, 'Content-Type': 'application/json' }, 
+                body: JSON.stringify(payload) 
+            });
+
             if (res.ok) {
                 const data = await res.json();
+                // Success: Update temp ID to real ID and stop syncing
                 setTasks(prev => prev.map(t => t.id === tempId ? { ...t, id: data.id, isSyncing: false } : t));
+            } else {
+                // API Error (e.g., 401, 500): Stop syncing so it doesn't spin forever
+                console.error("Todoist Sync Error:", res.status);
+                setTasks(prev => prev.map(t => t.id === tempId ? { ...t, isSyncing: false } : t));
             }
-        } catch(e) { console.error(e); }
+        } catch(e) { 
+            // Network Error: Stop syncing
+            console.error(e); 
+            setTasks(prev => prev.map(t => t.id === tempId ? { ...t, isSyncing: false } : t));
+        }
     }
   };
 
@@ -85,10 +99,6 @@ const TaskSection = memo(({ transparent }) => {
             const now = Date.now();
             if (newStatus) setStats(s => ({ ...s, tasksCompleted: s.tasksCompleted + 1 }));
             
-            // FIX: REMOVED the line that cleared focus upon completion.
-            // This allows the Timer to see that the currently focused task is now done.
-            // Old line was: if (focusedTaskId === id && newStatus) setFocusedTaskId(null);
-
             if (todoistToken) {
                 fetch(`https://api.todoist.com/rest/v2/tasks/${id}/${newStatus ? 'close' : 'reopen'}`, { method: 'POST', headers: { 'Authorization': `Bearer ${todoistToken}` } }).catch(console.error);
             }
@@ -99,7 +109,6 @@ const TaskSection = memo(({ transparent }) => {
   };
 
   const discardTask = async (id) => {
-      // FIX: Use context deleteTask (which archives) instead of filtering manually
       deleteTask(id);
       if (focusedTaskId === id) setFocusedTaskId(null);
   };
